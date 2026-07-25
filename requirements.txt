@@ -1,0 +1,7 @@
+streamlit>=1.36
+altair>=4.2
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.2
+pymysql>=1.1
+psycopg[binary]>=3.1
