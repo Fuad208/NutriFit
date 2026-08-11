@@ -593,11 +593,277 @@ Peran modul:
 | `schema_data/import_csv_to_db.py` | Import dataset CSV ke SQL. |
 | `schema_data/import_json_to_db.py` | Migrasi data JSON aplikasi ke SQL. |
 
-## 14. Skema SQL Aplikasi
+## 14. Diagram Sistem
+
+### 14.1 ERD
+
+ERD berikut menggambarkan relasi data aplikasi dan dataset referensi yang dipakai oleh proses rekomendasi.
+
+```mermaid
+erDiagram
+    USERS {
+        varchar user_id PK
+        varchar email UK
+        varchar name
+        varchar password
+        varchar password_hash
+        varchar role
+        varchar birth_date
+        varchar gender
+        json profile
+        json nutrition
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    CALORIE_RECORDS {
+        varchar id PK
+        varchar user_id FK
+        varchar email
+        json profile
+        json nutrition
+        timestamp created_at
+    }
+
+    MEAL_RECOMMENDATIONS {
+        varchar id PK
+        varchar user_id FK
+        varchar email
+        json preference
+        json recommendations
+        timestamp created_at
+    }
+
+    WORKOUT_RECOMMENDATIONS {
+        varchar id PK
+        varchar user_id FK
+        varchar email
+        json filters
+        json recommendations
+        timestamp created_at
+    }
+
+    FOOD_NUTRITION {
+        int id PK
+        double calories
+        double proteins
+        double fat
+        double carbohydrate
+        varchar name
+        text image
+    }
+
+    GYM_MEMBERS {
+        int member_id PK
+        int age
+        varchar gender
+        double weight_kg
+        double height_m
+        double bmi
+        varchar activity_level
+        varchar fitness_goal
+        int experience_level
+    }
+
+    TRAINING_PROGRAM {
+        int program_id PK
+        varchar title
+        text description
+        varchar type
+        varchar body_part
+        varchar equipment
+        varchar level
+        double rating
+        text rating_desc
+    }
+
+    USERS ||--o{ CALORIE_RECORDS : memiliki
+    USERS ||--o{ MEAL_RECOMMENDATIONS : membuat
+    USERS ||--o{ WORKOUT_RECOMMENDATIONS : membuat
+    GYM_MEMBERS ||--o{ CALORIE_RECORDS : referensi_cluster
+    FOOD_NUTRITION ||--o{ MEAL_RECOMMENDATIONS : kandidat_menu
+    TRAINING_PROGRAM ||--o{ WORKOUT_RECOMMENDATIONS : kandidat_latihan
+```
+
+### 14.2 Sequence Diagram
+
+Sequence berikut merangkum alur utama dari login, hitung kalori, generate menu, sampai generate latihan.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant UI as Streamlit UI
+    participant DB as src.database
+    participant N as src.nutrition
+    participant R as src.recommender
+    participant S as JSON/SQL Store
+
+    U->>UI: Login email dan password
+    UI->>DB: load_users()
+    DB->>S: Ambil data users
+    S-->>DB: Data users
+    DB-->>UI: Dictionary users
+    UI->>UI: verify_password()
+    UI->>DB: latest_user_record(calorie)
+    DB->>S: Ambil calorie_records terbaru
+    S-->>DB: Record terbaru
+    DB-->>UI: Profile/nutrition aktif
+
+    U->>UI: Isi form Hitung Kalori
+    UI->>N: calculate_nutrition_targets()
+    N-->>UI: NutritionResult
+    UI->>R: assign_user_cluster(gym_members, profile)
+    R-->>UI: user_cluster
+    UI->>DB: persist_user_profile()
+    DB->>S: Update users dan append calorie_records
+    S-->>DB: Commit berhasil
+
+    U->>UI: Buat Menu
+    UI->>R: recommend_foods(foods, nutrition, preference)
+    R-->>UI: Rekomendasi per slot makan
+    UI->>DB: persist_meal_recommendation()
+    DB->>S: Append meal_recommendations
+
+    U->>UI: Generate Latihan
+    UI->>R: recommend_exercises(exercises, filters)
+    R-->>UI: Rekomendasi latihan + set/reps/rest
+    UI->>DB: persist_workout_recommendation()
+    DB->>S: Append workout_recommendations
+```
+
+### 14.3 Class Diagram
+
+Class diagram berikut menunjukkan struktur class/data object dan dependensi fungsi utama pada implementasi.
+
+```mermaid
+classDiagram
+    class App {
+        +init_state()
+        +sidebar()
+        +auth_view()
+        +profile_view()
+        +home_view()
+        +calorie_view()
+        +meal_view()
+        +workout_view()
+        +admin_view()
+        +main()
+    }
+
+    class SQLStore {
+        +driver
+        +config
+        +connection()
+        +ensure_schema()
+        +load_users() dict
+        +save_users(users)
+        +load_records(store) list
+        +save_records(store, records)
+        +append_record(store, record)
+        +delete_record(store, record_id)
+        +insert_record(cursor, store, record)
+    }
+
+    class NutritionResult {
+        +float bmi
+        +str bmi_status
+        +float bmr
+        +float tdee
+        +float target_calories
+        +float ideal_weight
+        +float carbohydrate_g
+        +float protein_g
+        +float fat_g
+    }
+
+    class NutritionModule {
+        +calculate_bmi(weight_kg, height_cm)
+        +classify_bmi(bmi)
+        +calculate_bmr(gender, weight_kg, height_cm, age)
+        +calculate_ideal_weight(height_cm, gender)
+        +calculate_nutrition_targets(...)
+    }
+
+    class RecommenderModule {
+        +load_datasets()
+        +assign_user_cluster(members, profile)
+        +recommend_foods(foods, nutrition, preference)
+        +swap_food(foods, current_food, target_calories, preference)
+        +recommend_exercises(exercises, filters)
+        +switch_exercise(exercises, current_exercise, current_recommendations, filters)
+        +clustering_performance_report(...)
+        +profile_payload(nutrition, profile)
+    }
+
+    class ImportCsvToDb {
+        +create_table(cursor, spec, driver)
+        +truncate_table(cursor, table_name, driver)
+        +load_csv_rows(spec)
+        +insert_rows(cursor, table_name, spec, rows, placeholder, driver)
+    }
+
+    class ImportJsonToDb {
+        +import_users(cursor, store, users)
+        +import_records(cursor, store, store_name, records)
+        +record_payload(store, store_name, record)
+    }
+
+    App --> SQLStore : load/save data
+    App --> NutritionModule : hitung target
+    App --> RecommenderModule : rekomendasi
+    NutritionModule --> NutritionResult : membuat
+    RecommenderModule --> NutritionResult : memakai
+    ImportCsvToDb --> SQLStore : koneksi SQL
+    ImportJsonToDb --> SQLStore : migrasi JSON
+```
+
+### 14.4 Diagram Database
+
+Diagram ini memisahkan tabel aplikasi, tabel dataset referensi, dan metadata storage SQL.
+
+```mermaid
+flowchart TB
+    subgraph AppData[Data Aplikasi]
+        users[(users)]
+        calorie[(calorie_records)]
+        meal[(meal_recommendations)]
+        workout[(workout_recommendations)]
+        metadata[(app_metadata)]
+    end
+
+    subgraph ReferenceData[Dataset Referensi]
+        gym[(gym_members)]
+        food[(food_nutrition)]
+        training[(training_program)]
+    end
+
+    subgraph JsonFallback[JSON Default]
+        user_json[database/user.json]
+        calorie_json[database/calorie.json]
+        meal_json[database/meal_recommendation.json]
+        workout_json[database/workout_recommendation.json]
+    end
+
+    users -->|user_id| calorie
+    users -->|user_id| meal
+    users -->|user_id| workout
+
+    gym -->|K-Prototypes user_cluster| calorie
+    food -->|K-Means + CBF kandidat menu| meal
+    training -->|K-Modes-style + CBF kandidat latihan| workout
+
+    user_json -.seed/mode JSON.-> users
+    calorie_json -.seed/mode JSON.-> calorie
+    meal_json -.seed/mode JSON.-> meal
+    workout_json -.seed/mode JSON.-> workout
+    metadata -.status seed.-> users
+```
+
+## 15. Skema SQL Aplikasi
 
 Saat SQL dipakai untuk data aplikasi, `src/database.py` membuat tabel:
 
-### 14.1 `users`
+### 15.1 `users`
 
 | Field | Keterangan |
 | --- | --- |
@@ -614,7 +880,7 @@ Saat SQL dipakai untuk data aplikasi, `src/database.py` membuat tabel:
 | `created_at` | Waktu dibuat. |
 | `updated_at` | Waktu diperbarui. |
 
-### 14.2 `calorie_records`
+### 15.2 `calorie_records`
 
 | Field | Keterangan |
 | --- | --- |
@@ -625,7 +891,7 @@ Saat SQL dipakai untuk data aplikasi, `src/database.py` membuat tabel:
 | `nutrition` | JSON hasil nutrisi. |
 | `created_at` | Waktu transaksi hitung kalori. |
 
-### 14.3 `meal_recommendations`
+### 15.3 `meal_recommendations`
 
 | Field | Keterangan |
 | --- | --- |
@@ -636,7 +902,7 @@ Saat SQL dipakai untuk data aplikasi, `src/database.py` membuat tabel:
 | `recommendations` | JSON hasil rekomendasi per slot makan. |
 | `created_at` | Waktu generate menu. |
 
-### 14.4 `workout_recommendations`
+### 15.4 `workout_recommendations`
 
 | Field | Keterangan |
 | --- | --- |
@@ -647,7 +913,7 @@ Saat SQL dipakai untuk data aplikasi, `src/database.py` membuat tabel:
 | `recommendations` | JSON list latihan. |
 | `created_at` | Waktu generate latihan. |
 
-## 15. Output Sistem
+## 16. Output Sistem
 
 Output untuk user:
 
@@ -667,7 +933,7 @@ Output untuk admin:
 - Performa model clustering K-Prototypes, K-Means, dan K-Modes.
 - Tampilan dataset gym member, makanan, dan latihan.
 
-## 16. Skenario Pengujian Minimum
+## 17. Skenario Pengujian Minimum
 
 | No | Skenario | Ekspektasi |
 | ---: | --- | --- |
@@ -688,7 +954,7 @@ Output untuk admin:
 | 15 | Admin hapus user non-admin | User dan record terkait hilang. |
 | 16 | Admin hapus record aplikasi | Record dipilih terhapus berdasarkan id. |
 
-## 17. Catatan Batasan Implementasi Saat Ini
+## 18. Catatan Batasan Implementasi Saat Ini
 
 - Dataset referensi harus tersedia di SQL; import CSV perlu dijalankan sebelum aplikasi dipakai.
 - CRUD dataset referensi dari UI admin tersedia untuk makanan dan latihan; dataset gym member masih mode inspeksi/import CSV.

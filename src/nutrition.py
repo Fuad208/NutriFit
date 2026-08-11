@@ -12,9 +12,15 @@ ACTIVITY_FACTORS = {
 }
 
 GOAL_CALORIE_ADJUSTMENTS = {
-    "Lose Weight": -400,
+    "Lose Weight": -500,
     "Maintain Weight": 0,
-    "Gain Weight": 350,
+    "Gain Weight": 300,
+}
+
+GOAL_PROTEIN_GRAMS_PER_KG = {
+    "Lose Weight": 2.2,
+    "Maintain Weight": 1.8,
+    "Gain Weight": 1.6,
 }
 
 
@@ -44,12 +50,14 @@ def calculate_bmi(weight_kg: float, height_cm: float) -> float:
 
 def classify_bmi(bmi: float) -> str:
     if bmi < 18.5:
-        return "Underweight"
-    if bmi < 25:
+        return "Kurus"
+    if bmi < 23:
         return "Normal"
+    if bmi < 25:
+        return "Gemuk"
     if bmi < 30:
-        return "Overweight"
-    return "Obese"
+        return "Obesitas I"
+    return "Obesitas II"
 
 
 def calculate_bmr(gender: str, weight_kg: float, height_cm: float, age: int) -> float:
@@ -79,6 +87,9 @@ def calculate_nutrition_targets(
     activity_factor = ACTIVITY_FACTORS.get(activity_level, ACTIVITY_FACTORS["Medium"])
     tdee = bmr * activity_factor
     target_calories = max(1200, tdee + GOAL_CALORIE_ADJUSTMENTS.get(fitness_goal, 0))
+    protein_g = weight_kg * GOAL_PROTEIN_GRAMS_PER_KG.get(fitness_goal, 1.8)
+    fat_g = (target_calories * 0.25) / 9
+    carbohydrate_calories = max(0, target_calories - (protein_g * 4) - (fat_g * 9))
 
     return NutritionResult(
         bmi=round(bmi, 1),
@@ -87,7 +98,7 @@ def calculate_nutrition_targets(
         tdee=round(tdee),
         target_calories=round(target_calories),
         ideal_weight=round(calculate_ideal_weight(height_cm, gender), 1),
-        carbohydrate_g=round((target_calories * 0.50) / 4),
-        protein_g=round((target_calories * 0.25) / 4),
-        fat_g=round((target_calories * 0.25) / 9),
+        carbohydrate_g=round(carbohydrate_calories / 4),
+        protein_g=round(protein_g),
+        fat_g=round(fat_g),
     )

@@ -18,11 +18,14 @@ from src.database import SQLStore, database_driver, using_sql  # noqa: E402
 
 
 DATA_DIR = ROOT_DIR / "data"
+FOOD_NUTRITION_CSV = DATA_DIR / "nutrition.csv"
+if not FOOD_NUTRITION_CSV.exists():
+    FOOD_NUTRITION_CSV = DATA_DIR / "food_nutrition.csv"
 
 
 TABLES = {
     "food_nutrition": {
-        "csv": DATA_DIR / "food_nutrition.csv",
+        "csv": FOOD_NUTRITION_CSV,
         "columns": ["id", "calories", "proteins", "fat", "carbohydrate", "name", "image"],
         "primary_key": "id",
         "create": {

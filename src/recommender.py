@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from functools import lru_cache
 import os
 from typing import Iterable
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", "4")
 
@@ -27,15 +30,38 @@ MEAL_DISTRIBUTION = {
 
 MEAL_TEMPLATE = {
     "Breakfast": ["A", "B"],
-    "Lunch": ["A", "B", "B", "C"],
+    "Lunch": ["A", "B", "C"],
     "Snack": ["C"],
     "Dinner": ["B", "C"],
 }
+
+READY_TO_EAT_FOOD_PATTERN = (
+    r"\b(?:nasi|soto|bakso|gado-gado|gado|rendang|sate|pecel|rawon|pempek|lontong|bubur|"
+    r"goreng|bakar|rebus|kukus|tumis|sayur|sup|sop|opor|gulai|kari|balado|semur|pepes|"
+    r"botok|perkedel|urap|ketoprak|siomay|batagor|mie|mi|nugget|dadar|rujak|asinan|"
+    r"karedok|gudeg|cap cai|presto|masakan|dendeng|empal)\b"
+)
+
+RAW_FOOD_NAME_PATTERN = (
+    r"\b(?:segar|mentah|kering|tepung|biji|akar|daun|ampas|kulit|darah|jeroan|lemak|"
+    r"minyak|bumbu|ragi|pati|pucuk|buah|batang|kembang|beras|gula|garam|terigu|sagu|"
+    r"kelapa parut)\b"
+)
 
 LEVEL_ALLOWLIST = {
     "Beginner": {"Beginner"},
     "Intermediate": {"Beginner", "Intermediate"},
     "Expert": {"Beginner", "Intermediate", "Expert"},
+}
+
+TARGET_MUSCLE_GROUPS = {
+    "Dada": {"Chest"},
+    "Bahu": {"Shoulders", "Traps"},
+    "Punggung": {"Middle Back", "Lower Back"},
+    "Lengan": {"Biceps", "Triceps", "Forearms"},
+    "Core/Inti/Perut": {"Abdominals"},
+    "Kaki": {"Quadriceps", "Hamstrings", "Glutes", "Calves", "Abductors", "Adductors"},
+    "Sayap": {"Lats"},
 }
 
 TRAINING_PARAMETERS = {
@@ -176,16 +202,30 @@ def clean_members(df: pd.DataFrame) -> pd.DataFrame:
     cleaned["Experience_Label"] = cleaned["Experience_Level"].apply(normalize_experience_level)
     cleaned["Fitness_Goal"] = cleaned["Fitness_Goal"].apply(normalize_goal)
     cleaned = cleaned.dropna(subset=["Age", "Gender", "Weight (kg)", "Height (m)", "BMI"])
-    cleaned["User_Cluster"] = assign_member_clusters(cleaned)
+    labels, model = fit_member_cluster_model(cleaned)
+    cleaned["User_Cluster"] = pd.Series(labels + 1, index=cleaned.index)
+    cleaned.attrs["member_cluster_model"] = model
     return cleaned
 
 
 def assign_member_clusters(members: pd.DataFrame, n_clusters: int = 5) -> pd.Series:
+    labels, _ = fit_member_cluster_model(members, n_clusters=n_clusters)
+    return pd.Series(labels + 1, index=members.index)
+
+
+def fit_member_cluster_model(members: pd.DataFrame, n_clusters: int = 5) -> tuple[np.ndarray, dict]:
     numeric_columns = ["Age", "Weight (kg)", "Height (m)", "BMI"]
     categorical_columns = ["Gender", "Activity_Level", "Experience_Label", "Fitness_Goal"]
     numeric, categorical, scaler = member_feature_matrices(members, numeric_columns, categorical_columns)
-    labels, _, _ = fit_kprototypes(numeric, categorical, n_clusters=min(n_clusters, len(members)))
-    return pd.Series(labels + 1, index=members.index)
+    labels, numeric_modes, categorical_modes = fit_kprototypes(numeric, categorical, n_clusters=min(n_clusters, len(members)))
+    model = {
+        "numeric_columns": numeric_columns,
+        "categorical_columns": categorical_columns,
+        "scaler": scaler,
+        "numeric_modes": numeric_modes,
+        "categorical_modes": categorical_modes,
+    }
+    return labels, model
 
 
 def prepare_foods(df: pd.DataFrame) -> pd.DataFrame:
@@ -194,6 +234,7 @@ def prepare_foods(df: pd.DataFrame) -> pd.DataFrame:
     for column in ["calories", "proteins", "fat", "carbohydrate"]:
         foods[column] = pd.to_numeric(foods[column], errors="coerce").fillna(0)
     foods = foods[foods["calories"] > 0].reset_index(drop=True)
+    foods = filter_recommendable_foods(foods).reset_index(drop=True)
     foods["Food_Cluster"] = assign_food_clusters(foods)
     foods["CBF_Text"] = (
         foods["name"].fillna("")
@@ -209,6 +250,47 @@ def prepare_foods(df: pd.DataFrame) -> pd.DataFrame:
         + foods["Food_Cluster"]
     )
     return foods
+
+
+def filter_recommendable_foods(foods: pd.DataFrame) -> pd.DataFrame:
+    names = foods["name"].fillna("").astype(str).str.lower()
+    images = foods["image"].fillna("").astype(str)
+    has_valid_image = images.map(image_url_is_displayable)
+    looks_ready_to_eat = names.str.contains(READY_TO_EAT_FOOD_PATTERN, regex=True, na=False)
+    looks_raw_or_ingredient = names.str.contains(RAW_FOOD_NAME_PATTERN, regex=True, na=False)
+    return foods[has_valid_image & looks_ready_to_eat & ~looks_raw_or_ingredient].copy()
+
+
+@lru_cache(maxsize=2048)
+def image_url_is_displayable(url: str) -> bool:
+    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        return False
+
+    request = Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urlopen(request, timeout=3) as response:
+            return image_response_is_valid(response)
+    except HTTPError as exc:
+        if exc.code in {403, 405}:
+            return image_url_is_displayable_with_get(url)
+        return False
+    except (TimeoutError, URLError, ValueError):
+        return False
+
+
+def image_url_is_displayable_with_get(url: str) -> bool:
+    request = Request(url, method="GET", headers={"User-Agent": "Mozilla/5.0", "Range": "bytes=0-2048"})
+    try:
+        with urlopen(request, timeout=3) as response:
+            return image_response_is_valid(response)
+    except (HTTPError, TimeoutError, URLError, ValueError):
+        return False
+
+
+def image_response_is_valid(response) -> bool:
+    status = getattr(response, "status", 200)
+    content_type = response.headers.get("Content-Type", "").lower()
+    return 200 <= status < 400 and content_type.startswith("image/")
 
 
 def assign_food_clusters(foods: pd.DataFrame) -> pd.Series:
@@ -267,13 +349,15 @@ def assign_exercise_clusters(exercises: pd.DataFrame) -> pd.Series:
 
 
 def assign_user_cluster(members: pd.DataFrame, profile: dict) -> int:
-    numeric_columns = ["Age", "Weight (kg)", "Height (m)", "BMI"]
-    categorical_columns = ["Gender", "Activity_Level", "Experience_Label", "Fitness_Goal"]
+    model = members.attrs.get("member_cluster_model")
+    if not model:
+        raise RuntimeError("Member cluster model is not available. Load members through clean_members() first.")
 
-    work = members.copy()
-    work["Height (m)"] = work["Height (m)"].where(work["Height (m)"] < 3, work["Height (m)"] / 100)
-    numeric_matrix, categorical_matrix, scaler = member_feature_matrices(work, numeric_columns, categorical_columns)
-    _, numeric_modes, categorical_modes = fit_kprototypes(numeric_matrix, categorical_matrix, n_clusters=5)
+    numeric_columns = model["numeric_columns"]
+    categorical_columns = model["categorical_columns"]
+    scaler = model["scaler"]
+    numeric_modes = model["numeric_modes"]
+    categorical_modes = model["categorical_modes"]
 
     profile_numeric = pd.DataFrame(
         [[profile["age"], profile["weight_kg"], profile["height_cm"] / 100, profile["bmi"]]],
@@ -511,11 +595,11 @@ def recommend_foods(
     ranked = foods.assign(_score=scores).sort_values("_score", ascending=False)
 
     recommendations: dict[str, list[dict]] = {}
+    used_ids = set(excluded)
     for meal_slot, clusters in MEAL_TEMPLATE.items():
         slot_calories = nutrition.target_calories * MEAL_DISTRIBUTION[meal_slot]
         item_target = slot_calories / len(clusters)
         recommendations[meal_slot] = []
-        used_ids = set(excluded)
 
         for cluster in clusters:
             candidates = ranked[(ranked["Food_Cluster"] == cluster) & (~ranked["id"].isin(used_ids))]
@@ -552,13 +636,23 @@ def swap_food(
     current_food: dict,
     target_calories: float,
     preference: str,
+    excluded_food_ids: Iterable[int] | None = None,
 ) -> dict | None:
+    excluded = {int(food_id) for food_id in (excluded_food_ids or [])}
+    excluded.add(int(current_food["id"]))
     candidates = foods[
-        (foods["Food_Cluster"] == current_food["Food_Cluster"]) & (foods["id"] != current_food["id"])
+        (foods["Food_Cluster"] == current_food["Food_Cluster"]) & (~foods["id"].isin(excluded))
     ].copy()
     if candidates.empty:
+        candidates = foods[~foods["id"].isin(excluded)].copy()
+    if candidates.empty:
         return None
-    candidates["_score"] = candidates["name"].str.contains(preference, case=False, na=False).astype(float)
+
+    vectorizer = TfidfVectorizer(stop_words="english")
+    tfidf = vectorizer.fit_transform(candidates["CBF_Text"])
+    query = preference.strip() or "balanced protein carbohydrate"
+    scores = cosine_similarity(vectorizer.transform([query]), tfidf).ravel()
+    candidates["_score"] = scores
     return _pick_food_candidate(candidates.sort_values("_score", ascending=False), target_calories)
 
 
@@ -574,12 +668,21 @@ def recommend_exercises(
 ) -> pd.DataFrame:
     allowed_levels = LEVEL_ALLOWLIST[experience_level]
     filtered = exercises[exercises["Level"].isin(allowed_levels)].copy()
-    if body_part != "Any":
-        filtered = filtered[filtered["BodyPart"] == body_part]
+    target_parts = resolve_target_body_parts(body_part)
+    if target_parts is not None:
+        filtered = filtered[filtered["BodyPart"].isin(target_parts)]
+    target_filtered = filtered.copy()
     if workout_type != "Any":
         filtered = filtered[filtered["Type"] == workout_type]
+    if filtered.empty and workout_type != "Any":
+        filtered = target_filtered
     if filtered.empty:
-        filtered = exercises[exercises["Level"].isin(allowed_levels)].copy()
+        selected = filtered.copy()
+        params = TRAINING_PARAMETERS[(normalize_goal(fitness_goal), experience_level)]
+        for key, value in params.items():
+            selected[key] = value
+        selected["Similarity"] = pd.Series(dtype=float)
+        return selected
 
     query = f"{body_part} {workout_type} {equipment_preference} {experience_level}"
     vectorizer = TfidfVectorizer(stop_words="english")
@@ -593,6 +696,63 @@ def recommend_exercises(
         selected[key] = value
     selected["Similarity"] = selected["Similarity"].round(3)
     return selected
+
+
+def resolve_target_body_parts(body_part: str) -> set[str] | None:
+    if body_part == "Any":
+        return None
+    return TARGET_MUSCLE_GROUPS.get(body_part, {body_part})
+
+
+def switch_exercise(
+    exercises: pd.DataFrame,
+    current_exercise: dict,
+    current_recommendations: pd.DataFrame,
+    filters: dict,
+) -> dict | None:
+    experience_level = filters.get("experience_level", "Beginner")
+    fitness_goal = filters.get("fitness_goal", "Maintain Weight")
+    body_part = filters.get("body_part", "Any")
+    workout_type = filters.get("workout_type", "Any")
+    equipment_preference = filters.get("equipment_preference", "Any")
+
+    allowed_levels = LEVEL_ALLOWLIST[experience_level]
+    candidates = exercises[exercises["Level"].isin(allowed_levels)].copy()
+    target_parts = resolve_target_body_parts(body_part)
+    if target_parts is not None:
+        candidates = candidates[candidates["BodyPart"].isin(target_parts)]
+    target_candidates = candidates.copy()
+    if workout_type != "Any":
+        candidates = candidates[candidates["Type"] == workout_type]
+    if candidates.empty and workout_type != "Any":
+        candidates = target_candidates
+
+    current_title = str(current_exercise.get("Title", ""))
+    selected_titles = {
+        str(title)
+        for title in current_recommendations.get("Title", pd.Series(dtype=str)).tolist()
+    }
+    excluded_titles = {str(title) for title in filters.get("excluded_titles", [])}
+    candidates = candidates[~candidates["Title"].astype(str).isin(selected_titles | excluded_titles | {current_title})]
+    if candidates.empty:
+        return None
+
+    query = f"{body_part} {workout_type} {equipment_preference} {experience_level}"
+    vectorizer = TfidfVectorizer(stop_words="english")
+    tfidf = vectorizer.fit_transform(candidates["CBF_Text"])
+    scores = cosine_similarity(vectorizer.transform([query]), tfidf).ravel()
+    ranked = candidates.assign(Similarity=scores)
+    if equipment_preference != "Any":
+        ranked["_equipment_match"] = (ranked["Equipment"] == equipment_preference).astype(int)
+        ranked = ranked.sort_values(["_equipment_match", "Similarity"], ascending=False)
+    else:
+        ranked = ranked.sort_values("Similarity", ascending=False)
+
+    replacement = ranked.iloc[0].drop(labels=["_equipment_match"], errors="ignore").to_dict()
+    params = TRAINING_PARAMETERS[(normalize_goal(fitness_goal), experience_level)]
+    replacement.update(params)
+    replacement["Similarity"] = round(float(replacement.get("Similarity", 0)), 3)
+    return replacement
 
 
 def _enforce_equipment_diversity(ranked: pd.DataFrame, limit: int) -> pd.DataFrame:

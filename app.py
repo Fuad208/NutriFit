@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from difflib import SequenceMatcher
 import hashlib
 import html
+import json
 from pathlib import Path
+import re
 from uuid import uuid4
 
 import altair as alt
@@ -28,6 +31,7 @@ from src.database import (
 from src.nutrition import calculate_nutrition_targets
 from src.nutrition import NutritionResult
 from src.recommender import (
+    TARGET_MUSCLE_GROUPS,
     assign_user_cluster,
     clustering_performance_report,
     load_datasets,
@@ -35,6 +39,7 @@ from src.recommender import (
     recommend_exercises,
     recommend_foods,
     swap_food,
+    switch_exercise,
 )
 
 
@@ -46,9 +51,102 @@ st.set_page_config(
 )
 
 
+TRAINING_DETAIL_DIR = Path("dataProgramTraining")
+TRAINING_DETAIL_PATH = TRAINING_DETAIL_DIR / "data" / "exercises.json"
+
+
 @st.cache_data(show_spinner=False)
 def get_data():
     return load_datasets()
+
+
+@st.cache_data(show_spinner=False)
+def load_training_tutorials() -> list[dict]:
+    if not TRAINING_DETAIL_PATH.exists():
+        return []
+    with TRAINING_DETAIL_PATH.open("r", encoding="utf-8") as file:
+        data = json.load(file)
+    return data if isinstance(data, list) else []
+
+
+def normalize_exercise_name(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+    removable_prefixes = ("fyr ", "fyr2 ", "am ")
+    for prefix in removable_prefixes:
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
+    return re.sub(r"\s+", " ", normalized)
+
+
+def exercise_name_tokens(value: str) -> set[str]:
+    ignored = {"and", "the", "a", "an", "with", "to", "on", "of"}
+    return {token for token in normalize_exercise_name(value).split() if token and token not in ignored}
+
+
+def find_training_tutorial(exercise: dict, tutorials: list[dict]) -> dict | None:
+    if not tutorials:
+        return None
+
+    title = normalize_exercise_name(exercise.get("Title", ""))
+    title_tokens = exercise_name_tokens(exercise.get("Title", ""))
+    body_part = normalize_exercise_name(exercise.get("BodyPart", ""))
+    equipment = normalize_exercise_name(exercise.get("Equipment", ""))
+
+    best_tutorial = None
+    best_score = 0.0
+    for tutorial in tutorials:
+        name = normalize_exercise_name(tutorial.get("name", ""))
+        if not name:
+            continue
+
+        name_tokens = exercise_name_tokens(tutorial.get("name", ""))
+        shared_tokens = title_tokens & name_tokens
+        title_match = bool(title and (title in name or name in title))
+        if not shared_tokens and not title_match:
+            continue
+
+        token_union = title_tokens | name_tokens
+        token_overlap = len(shared_tokens) / len(token_union) if token_union else 0
+        score = (SequenceMatcher(None, title, name).ratio() * 0.65) + (token_overlap * 0.35)
+        if title_match:
+            score += 0.2
+        if body_part and body_part in normalize_exercise_name(tutorial.get("body_part", "")):
+            score += 0.08
+        if equipment and equipment in normalize_exercise_name(tutorial.get("equipment", "")):
+            score += 0.08
+
+        if score > best_score:
+            best_score = score
+            best_tutorial = tutorial
+
+    return best_tutorial if best_score >= 0.62 else None
+
+
+def tutorial_has_video(tutorial: dict | None) -> bool:
+    if not tutorial:
+        return False
+    gif_path = TRAINING_DETAIL_DIR / str(tutorial.get("gif_url", ""))
+    return gif_path.exists()
+
+
+@st.cache_data(show_spinner=False)
+def exercises_with_video_tutorials(exercises: pd.DataFrame, tutorials: list[dict]) -> pd.DataFrame:
+    if exercises.empty or not tutorials:
+        return exercises.iloc[0:0].copy()
+
+    eligible_indices = []
+    for index, row in exercises.iterrows():
+        tutorial = find_training_tutorial(row.to_dict(), tutorials)
+        if tutorial_has_video(tutorial):
+            eligible_indices.append(index)
+
+    return exercises.loc[eligible_indices].copy()
+
+
+def recommendations_have_video_tutorials(recommendations: pd.DataFrame | None, tutorials: list[dict]) -> bool:
+    if recommendations is None or recommendations.empty:
+        return False
+    return all(tutorial_has_video(find_training_tutorial(row.to_dict(), tutorials)) for _, row in recommendations.iterrows())
 
 
 def init_state() -> None:
@@ -62,7 +160,10 @@ def init_state() -> None:
         "profile": None,
         "food_recommendations": None,
         "exercise_recommendations": None,
+        "workout_filters": None,
+        "selected_workout": None,
         "excluded_food_ids": [],
+        "excluded_exercise_titles": [],
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -118,7 +219,9 @@ def restore_user_context(email: str) -> None:
         st.session_state.nutrition = None
     st.session_state.food_recommendations = None
     st.session_state.exercise_recommendations = None
+    st.session_state.workout_filters = None
     st.session_state.excluded_food_ids = []
+    st.session_state.excluded_exercise_titles = []
 
 
 def persist_user_profile(profile: dict, nutrition: NutritionResult) -> None:
@@ -544,6 +647,42 @@ def inject_css() -> None:
             font-weight: 800;
             margin: 1rem 0 .35rem;
         }
+        .form-section-title {
+            color: var(--ink);
+            font-size: 1rem;
+            font-weight: 800;
+            margin: .2rem 0 .15rem;
+        }
+        .form-section-caption {
+            color: var(--muted);
+            font-size: .88rem;
+            margin: 0 0 .65rem;
+        }
+        div[data-testid="stForm"] {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 1.1rem 1.15rem 1.25rem;
+        }
+        div[data-testid="stForm"] div[data-testid="stVerticalBlock"] {
+            gap: .55rem;
+        }
+        div[data-testid="stForm"] label {
+            color: var(--ink);
+            font-weight: 750;
+        }
+        div[data-testid="stForm"] input,
+        div[data-testid="stForm"] select {
+            min-height: 42px;
+        }
+        div[data-testid="stForm"] [data-baseweb="input"],
+        div[data-testid="stForm"] [data-baseweb="select"] > div,
+        div[data-testid="stForm"] [data-baseweb="radio"] {
+            border-radius: 8px;
+        }
+        div[data-testid="stForm"] [data-testid="stFormSubmitButton"] {
+            margin-top: .35rem;
+        }
         .stButton > button {
             border-radius: 8px;
             border: 1px solid var(--green);
@@ -780,24 +919,12 @@ def home_view(members: pd.DataFrame, foods: pd.DataFrame, exercises: pd.DataFram
     with top_left:
         show_weight_trend_card(user.get("user_id"))
     with top_right:
-        latest_workout = "Latihan Dada (Gym)" if st.session_state.exercise_recommendations is not None else "Rekomendasi Latihan"
-        latest_meal = "Menu sehat harian" if st.session_state.food_recommendations is not None else "Rekomendasi Menu"
+        activity_items = recent_activity_items(user.get("user_id"), nutrition, target_calories)
         st.markdown(
             f"""
             <div class="dashboard-card top-card">
                 <div class="dashboard-title">Aktivitas Terakhir</div>
-                <div class="activity-item">
-                    <div><div class="activity-name">{latest_workout}</div><div class="subtle">Program latihan</div></div>
-                    <div class="activity-time">2 jam lalu</div>
-                </div>
-                <div class="activity-item">
-                    <div><div class="activity-name">Hitung Kalori</div><div class="subtle">{nutrition.bmi_status if nutrition else "Belum dihitung"}</div></div>
-                    <div class="activity-time">4 jam lalu</div>
-                </div>
-                <div class="activity-item">
-                    <div><div class="activity-name">{latest_meal}</div><div class="subtle">Target {target_calories:,.0f} kcal</div></div>
-                    <div class="activity-time">6 jam lalu</div>
-                </div>
+                {render_activity_items(activity_items)}
             </div>
             """,
             unsafe_allow_html=True,
@@ -843,6 +970,92 @@ def home_view(members: pd.DataFrame, foods: pd.DataFrame, exercises: pd.DataFram
             """,
             unsafe_allow_html=True,
         )
+
+
+def recent_activity_items(user_id: str | None, nutrition: NutritionResult | None, target_calories: float) -> list[dict]:
+    activity_specs = [
+        (
+            "Rekomendasi Latihan",
+            WORKOUT_DB_PATH,
+            "Program latihan",
+        ),
+        (
+            "Hitung Kalori",
+            CALORIE_DB_PATH,
+            nutrition.bmi_status if nutrition else "Belum dihitung",
+        ),
+        (
+            "Rekomendasi Menu",
+            MEAL_DB_PATH,
+            f"Target {target_calories:,.0f} kcal" if target_calories else "Belum dibuat",
+        ),
+    ]
+
+    items = []
+    for name, store, subtitle in activity_specs:
+        record = latest_user_record(store, user_id)
+        parsed_at = parse_record_datetime(record.get("created_at")) if record else None
+        items.append(
+            {
+                "name": name,
+                "subtitle": subtitle,
+                "created_at": parsed_at,
+                "time_label": relative_time_label(parsed_at) if parsed_at else "Belum ada",
+            }
+        )
+
+    return sorted(items, key=lambda item: item["created_at"] or datetime.min, reverse=True)
+
+
+def render_activity_items(items: list[dict]) -> str:
+    rows = []
+    for item in items:
+        rows.append(
+            '<div class="activity-item">'
+            f'<div><div class="activity-name">{html.escape(str(item["name"]))}</div>'
+            f'<div class="subtle">{html.escape(str(item["subtitle"]))}</div></div>'
+            f'<div class="activity-time">{html.escape(str(item["time_label"]))}</div>'
+            "</div>"
+        )
+    return "".join(rows)
+
+
+def parse_record_datetime(value) -> datetime | None:
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=None)
+
+
+def relative_time_label(value: datetime | None) -> str:
+    if value is None:
+        return "Belum ada"
+
+    delta = datetime.now() - value
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 0:
+        return format_record_datetime(value)
+    if total_seconds < 60:
+        return "Baru saja"
+
+    minutes = total_seconds // 60
+    if minutes < 60:
+        return f"{minutes} menit lalu"
+
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} jam lalu"
+
+    days = hours // 24
+    if days < 7:
+        return f"{days} hari lalu"
+
+    return format_record_datetime(value)
 
 
 def show_weight_trend_card(user_id: str | None) -> None:
@@ -921,16 +1134,36 @@ def calorie_view(members: pd.DataFrame) -> None:
     }
 
     with st.form("calorie_form"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
+        st.markdown(
+            """
+            <div class="form-section-title">Data Tubuh</div>
+            <div class="form-section-caption">Gunakan data terbaru agar rekomendasi lebih akurat.</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        body_cols = st.columns(3)
+        with body_cols[0]:
             weight = st.number_input("Berat (kg)", min_value=30.0, max_value=250.0, value=70.0, step=0.5)
-        with col2:
+        with body_cols[1]:
             height = st.number_input("Tinggi (cm)", min_value=120.0, max_value=230.0, value=175.0, step=0.5)
-            activity_label = st.selectbox("Tingkat Aktivitas", list(activity_options), index=1)
-        with col3:
-            experience_label = st.selectbox("Level Pengalaman", list(experience_options), index=1)
+        with body_cols[2]:
+            st.number_input("Umur", min_value=13, max_value=120, value=int(age), disabled=True)
 
-        goal_label = st.radio("Tujuan", list(goal_options), horizontal=True)
+        st.markdown(
+            """
+            <div class="form-section-title">Aktivitas & Tujuan</div>
+            <div class="form-section-caption">Pilih kondisi latihan dan target utama Anda.</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        habit_cols = st.columns([1, 1, 1.35])
+        with habit_cols[0]:
+            activity_label = st.selectbox("Tingkat Aktivitas", list(activity_options), index=1)
+        with habit_cols[1]:
+            experience_label = st.selectbox("Level Pengalaman", list(experience_options), index=1)
+        with habit_cols[2]:
+            goal_label = st.radio("Tujuan", list(goal_options), horizontal=True)
+
         submitted = st.form_submit_button("Hitung Sekarang", use_container_width=True)
 
     if submitted:
@@ -970,9 +1203,13 @@ def calorie_view(members: pd.DataFrame) -> None:
 def show_nutrition_result(nutrition, profile) -> None:
     bmi_status_map = {
         "Underweight": "Berat Badan Kurang",
+        "Kurus": "Berat Badan Kurang",
         "Normal": "Normal",
         "Overweight": "Berat Badan Berlebih",
+        "Gemuk": "Gemuk",
         "Obese": "Obesitas",
+        "Obesitas I": "Obesitas I",
+        "Obesitas II": "Obesitas II",
     }
     st.markdown('<div class="section-title">Ringkasan Kesehatan</div>', unsafe_allow_html=True)
     cols = st.columns(4)
@@ -1138,6 +1375,12 @@ def meal_view(foods: pd.DataFrame) -> None:
 
 def display_meals(foods: pd.DataFrame, preference: str) -> None:
     recommendations = st.session_state.food_recommendations or {}
+    displayed_food_ids = {
+        int(item["id"])
+        for slot_items in recommendations.values()
+        for item in slot_items
+        if item.get("id") is not None
+    }
     for meal_slot, items in recommendations.items():
         slot_label = meal_slot_label(meal_slot)
         st.markdown(f"### {slot_label}")
@@ -1166,7 +1409,8 @@ def display_meals(foods: pd.DataFrame, preference: str) -> None:
                     )
                 with action_col:
                     if st.button("Tukar", key=f"swap_{meal_slot}_{item['id']}", use_container_width=True):
-                        replacement = swap_food(foods, item, item["target_calories"], preference)
+                        excluded_food_ids = displayed_food_ids | set(st.session_state.excluded_food_ids)
+                        replacement = swap_food(foods, item, item["target_calories"], preference, excluded_food_ids)
                         if replacement:
                             replacement["is_swapped"] = True
                             st.session_state.excluded_food_ids.append(item["id"])
@@ -1194,13 +1438,19 @@ def workout_view(exercises: pd.DataFrame) -> None:
         return
 
     profile = st.session_state.profile
-    body_parts = ["Any"] + sorted(exercises["BodyPart"].dropna().unique().tolist())
-    workout_types = ["Any"] + sorted(exercises["Type"].dropna().unique().tolist())
-    equipment = ["Any"] + sorted(exercises["Equipment"].dropna().unique().tolist())
+    tutorials = load_training_tutorials()
+    recommendation_exercises = exercises_with_video_tutorials(exercises, tutorials)
+    if recommendation_exercises.empty:
+        st.warning("Belum ada data latihan dengan tutorial video yang bisa direkomendasikan.")
+        return
+
+    body_parts = list(TARGET_MUSCLE_GROUPS)
+    workout_types = ["Any"] + sorted(recommendation_exercises["Type"].dropna().unique().tolist())
+    equipment = ["Any"] + sorted(recommendation_exercises["Equipment"].dropna().unique().tolist())
 
     cols = st.columns(4)
     with cols[0]:
-        body_part = st.selectbox("Target Otot", body_parts, index=body_parts.index("Chest") if "Chest" in body_parts else 0)
+        body_part = st.selectbox("Target Otot", body_parts, index=body_parts.index("Dada"))
     with cols[1]:
         workout_type = st.selectbox("Jenis Latihan", workout_types, index=workout_types.index("Strength") if "Strength" in workout_types else 0)
     with cols[2]:
@@ -1208,9 +1458,22 @@ def workout_view(exercises: pd.DataFrame) -> None:
     with cols[3]:
         limit = st.slider("Jumlah Latihan", min_value=3, max_value=8, value=5)
 
-    if st.button("Generate Latihan", use_container_width=True) or st.session_state.exercise_recommendations is None:
+    workout_filters = {
+        "body_part": body_part,
+        "workout_type": workout_type,
+        "equipment_preference": equipment_preference,
+        "experience_level": profile["experience_level"],
+        "fitness_goal": profile["fitness_goal"],
+        "limit": limit,
+    }
+    generate = st.button("Generate Latihan", use_container_width=True)
+    needs_video_refresh = not recommendations_have_video_tutorials(st.session_state.exercise_recommendations, tutorials)
+
+    if generate or needs_video_refresh:
+        st.session_state.excluded_exercise_titles = []
+        st.session_state.workout_filters = workout_filters
         st.session_state.exercise_recommendations = recommend_exercises(
-            exercises,
+            recommendation_exercises,
             body_part=body_part,
             workout_type=workout_type,
             equipment_preference=equipment_preference,
@@ -1220,25 +1483,23 @@ def workout_view(exercises: pd.DataFrame) -> None:
         )
         persist_workout_recommendation(
             st.session_state.exercise_recommendations,
-            {
-                "body_part": body_part,
-                "workout_type": workout_type,
-                "equipment_preference": equipment_preference,
-                "experience_level": profile["experience_level"],
-                "fitness_goal": profile["fitness_goal"],
-                "limit": limit,
-            },
+            workout_filters,
         )
 
-    display_workouts(st.session_state.exercise_recommendations)
+    display_workouts(recommendation_exercises, st.session_state.exercise_recommendations, tutorials, workout_filters)
 
 
-def display_workouts(recommendations: pd.DataFrame | None) -> None:
+def display_workouts(
+    exercises: pd.DataFrame,
+    recommendations: pd.DataFrame | None,
+    tutorials: list[dict],
+    active_filters: dict,
+) -> None:
     if recommendations is None or recommendations.empty:
         st.info("No workout recommendations yet.")
         return
 
-    body_part = recommendations.iloc[0]["BodyPart"] if "BodyPart" in recommendations else "Selected Muscle"
+    body_part = active_filters.get("body_part") or recommendations.iloc[0]["BodyPart"]
     st.markdown(
         f"""
         <div class="workout-program">
@@ -1259,26 +1520,117 @@ def display_workouts(recommendations: pd.DataFrame | None) -> None:
             number = item_index + 1
             _, row = rows[item_index]
             with col:
-                st.markdown(
-                    f"""
-                    <div class="exercise-card">
-                        <div>
-                            <div class="workout-number">{number}</div>
-                            <div class="exercise-title" style="margin-top:.75rem;">{html.escape(str(row['Title']))}</div>
-                            <span class="chip">{html.escape(str(row['BodyPart']))}</span>
-                            <span class="chip">{html.escape(str(row['Equipment']))}</span>
-                            <span class="chip">{html.escape(str(row['Level']))}</span>
-                            <div class="exercise-desc">{html.escape(str(row['Desc']))}</div>
-                        </div>
+                exercise = row.to_dict()
+                tutorial = find_training_tutorial(exercise, tutorials)
+                exercise_key = exercise.get("Program_ID", row.get("Title", number))
+                with st.container(border=True):
+                    header_cols = st.columns([0.18, 0.42, 0.40], vertical_alignment="top")
+                    with header_cols[0]:
+                        st.markdown(f'<div class="workout-number">{number}</div>', unsafe_allow_html=True)
+                    with header_cols[2]:
+                        if st.button("Switch Training", key=f"workout_switch_{number}_{exercise_key}", use_container_width=True):
+                            filters = dict(active_filters or st.session_state.workout_filters or {})
+                            filters["excluded_titles"] = st.session_state.excluded_exercise_titles
+                            replacement = switch_exercise(exercises, exercise, recommendations, filters)
+                            if replacement:
+                                st.session_state.excluded_exercise_titles.append(str(row["Title"]))
+                                st.session_state.workout_filters = active_filters
+                                updated = recommendations.copy()
+                                target_index = recommendations.index[item_index]
+                                for key, value in replacement.items():
+                                    updated.loc[target_index, key] = value
+                                st.session_state.exercise_recommendations = updated
+                                persist_workout_recommendation(updated, active_filters or filters)
+                                st.rerun()
+                            st.warning("Belum ada latihan pengganti yang relevan.")
+
+                    st.markdown(
+                        f"""
+                        <div class="exercise-title">{html.escape(str(row['Title']))}</div>
+                        <span class="chip">{html.escape(str(row['BodyPart']))}</span>
+                        <span class="chip">{html.escape(str(row['Equipment']))}</span>
+                        <span class="chip">{html.escape(str(row['Level']))}</span>
+                        <div class="exercise-desc">{html.escape(str(row['Desc']))}</div>
                         <div class="workout-dose">
                             {row['sets']} sets x {row['reps']} reps<br>
                             Rest {row['rest_seconds']}s
                         </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    if st.button("Detail", key=f"workout_detail_{number}_{exercise_key}", use_container_width=True):
+                        st.session_state.selected_workout = {
+                            "exercise": exercise,
+                            "tutorial": tutorial,
+                        }
+                        st.session_state.page = "Workout Tutorial"
+                        st.rerun()
         st.markdown('<div class="workout-card-row"></div>', unsafe_allow_html=True)
+
+
+def workout_tutorial_view() -> None:
+    selected = st.session_state.get("selected_workout")
+    if not selected:
+        st.warning("Pilih latihan dari halaman rekomendasi terlebih dahulu.")
+        if st.button("Kembali ke Rekomendasi Latihan", use_container_width=True):
+            st.session_state.page = "Workout Recommendation"
+            st.rerun()
+        return
+
+    exercise = selected.get("exercise") or {}
+    tutorial = selected.get("tutorial")
+
+    if st.button("Kembali", use_container_width=False):
+        st.session_state.page = "Workout Recommendation"
+        st.rerun()
+
+    st.markdown('<div class="brand">Tutorial Latihan</div>', unsafe_allow_html=True)
+    st.caption("Instruksi ditampilkan dalam bahasa Inggris dari dataset tutorial latihan.")
+
+    title = tutorial.get("name") if tutorial else exercise.get("Title", "Latihan")
+    st.markdown(f'<div class="section-title">{html.escape(str(title)).title()}</div>', unsafe_allow_html=True)
+
+    if not tutorial:
+        st.info("Detail tutorial belum ditemukan untuk latihan ini. Deskripsi dari dataset utama tetap ditampilkan.")
+        st.write(exercise.get("Desc", "-"))
+        return
+
+    gif_path = TRAINING_DETAIL_DIR / str(tutorial.get("gif_url", ""))
+    image_path = TRAINING_DETAIL_DIR / str(tutorial.get("image", ""))
+    media_path = gif_path if gif_path.exists() else image_path
+
+    media_col, detail_col = st.columns([1, 1.4])
+    with media_col:
+        if media_path.exists():
+            st.image(str(media_path), use_container_width=True)
+        attribution = tutorial.get("attribution")
+        if attribution:
+            st.caption(str(attribution))
+
+    with detail_col:
+        st.markdown(
+            f"""
+            <span class="chip">{html.escape(str(tutorial.get('body_part', '-')).title())}</span>
+            <span class="chip">{html.escape(str(tutorial.get('equipment', '-')).title())}</span>
+            <span class="chip">{html.escape(str(tutorial.get('target', '-')).title())}</span>
+            """,
+            unsafe_allow_html=True,
+        )
+        secondary = tutorial.get("secondary_muscles") or []
+        if secondary:
+            st.caption(f"Secondary muscles: {', '.join(str(item).title() for item in secondary)}")
+
+        steps = (tutorial.get("instruction_steps") or {}).get("en") or []
+        if not steps:
+            instruction = (tutorial.get("instructions") or {}).get("en", "")
+            steps = [instruction] if instruction else []
+
+        st.markdown("**Instructions**")
+        if steps:
+            for index, step in enumerate(steps, start=1):
+                st.write(f"{index}. {step}")
+        else:
+            st.write("No English instructions available.")
 
 
 def admin_view(members: pd.DataFrame, foods: pd.DataFrame, exercises: pd.DataFrame) -> None:
@@ -1608,6 +1960,8 @@ def refresh_datasets_after_admin_change(message: str) -> None:
     get_data.clear()
     st.session_state.food_recommendations = None
     st.session_state.exercise_recommendations = None
+    st.session_state.workout_filters = None
+    st.session_state.excluded_exercise_titles = []
     st.success(message)
     st.rerun()
 
@@ -1699,6 +2053,8 @@ def main() -> None:
         meal_view(foods)
     elif page == "Workout Recommendation":
         workout_view(exercises)
+    elif page == "Workout Tutorial":
+        workout_tutorial_view()
     elif page == "Admin Data":
         admin_view(members, foods, exercises)
 
