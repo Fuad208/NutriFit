@@ -1,9 +1,29 @@
 [theme]
-primaryColor = "#ef4444"
+primaryColor = "#FF4646"
 backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#fff7f7"
+
+# Latar SEMUA widget interaktif -- kotak isian, dropdown, area teks -- bukan
+# hanya "warna sekunder" seperti namanya menyiratkan. Sebelumnya merah muda
+# (#fff7f7), dan itulah satu-satunya penyebab kotak isian tampil merah muda:
+# warnanya datang dari tema Streamlit, bukan dari aturan CSS di
+# src/core/styles.py, sehingga tidak bisa dikoreksi dari sana dengan andal.
+# Rancangan meminta kotak isian putih, jadi dibetulkan di sumbernya.
+secondaryBackgroundColor = "#ffffff"
+
 textColor = "#17202a"
 font = "sans serif"
+
+# Kotak isian putih di atas kartu putih hanya bisa dibedakan oleh garis tepinya,
+# jadi garis itu wajib ada. Nilainya sama dengan --line di src/core/styles.py.
+showWidgetBorder = true
+borderColor = "#e5e7eb"
+
+# Blok kode dan header tabel dulu ikut mewarisi merah muda dari
+# secondaryBackgroundColor. Sejak nilai itu jadi putih, keduanya butuh warnanya
+# sendiri -- kalau tidak, blok kode menyatu dengan latar halaman dan header
+# tabel tidak lagi terpisah dari isinya.
+codeBackgroundColor = "#fff7f7"
+dataframeHeaderBackgroundColor = "#fff7f7"
 
 [server]
 headless = true

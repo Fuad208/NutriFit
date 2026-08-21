@@ -1,0 +1,82 @@
+{
+  "dibuat": "2026-08-16T21:09:44",
+  "jumlah_klaster_model": 10,
+  "users": {
+    "fuadalfajri@gmail.com": null,
+    "fuadalfajri01@gmail.com": 3,
+    "fuadalfajri06@gmail.com": null,
+    "fuadalfajri92@gmail.com": 5,
+    "fuadalfajri92+admin@gmail.com": null,
+    "sb@gmail.com": null
+  },
+  "calorie_records": [
+    {
+      "id": "dc518846-1904-4cdf-a068-4da9b1f2d23e",
+      "user_cluster": 4
+    },
+    {
+      "id": "597bd586-9ab4-44be-afab-dbb7fd3ad385",
+      "user_cluster": 3
+    },
+    {
+      "id": "a012c679-53f1-4619-adc6-863b4bcc7cbd",
+      "user_cluster": 4
+    },
+    {
+      "id": "158e9c4f-a6da-4f37-93b4-6f275c0e11cc",
+      "user_cluster": 3
+    },
+    {
+      "id": "ab725d2e-b214-44af-96d1-9ae8aad3ad0e",
+      "user_cluster": 4
+    },
+    {
+      "id": "93fa42b9-cdc2-4ac1-8bc8-1705fe00b685",
+      "user_cluster": 3
+    },
+    {
+      "id": "9d73ea24-1f08-4d56-a164-de1d08016a99",
+      "user_cluster": 4
+    },
+    {
+      "id": "342227f8-3114-47f8-810d-b1b2bd73191d",
+      "user_cluster": 1
+    },
+    {
+      "id": "8110f1e8-e099-4627-bc9f-fe6918ce1928",
+      "user_cluster": 1
+    },
+    {
+      "id": "55dee18c-fd79-43c1-9a79-3a80f811281e",
+      "user_cluster": 4
+    },
+    {
+      "id": "dd045126-324e-42a9-af2d-398cdd658aa2",
+      "user_cluster": 4
+    },
+    {
+      "id": "186ac31f-b78a-4c69-a471-9a40a161a532",
+      "user_cluster": 3
+    },
+    {
+      "id": "94ad1440-0b76-4fb4-bc93-ff5dc981d4b6",
+      "user_cluster": 7
+    },
+    {
+      "id": "07632564-787a-432f-9ddf-aee50565906c",
+      "user_cluster": 7
+    },
+    {
+      "id": "27db995b-8585-49cf-a41b-698d31a28df7",
+      "user_cluster": 5
+    },
+    {
+      "id": "744c5fa1-5bba-404d-953c-41664418b573",
+      "user_cluster": 5
+    },
+    {
+      "id": "67f98207-0e1e-4969-96bf-4bd25d0f4247",
+      "user_cluster": 5
+    }
+  ]
+}

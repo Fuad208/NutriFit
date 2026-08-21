@@ -14,13 +14,15 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.database import SQLStore, database_driver, using_sql  # noqa: E402
+from src.database import SQLStore  # noqa: E402
 
 
 DATA_DIR = ROOT_DIR / "data"
-FOOD_NUTRITION_CSV = DATA_DIR / "nutrition.csv"
-if not FOOD_NUTRITION_CSV.exists():
-    FOOD_NUTRITION_CSV = DATA_DIR / "food_nutrition.csv"
+# Dulu `nutrition.csv` dicoba dulu lalu jatuh ke `food_nutrition.csv`. Keduanya
+# berisi data yang sama persis (1.346 x 7), dan punya dua berkas kembar membuat
+# "dataset penelitian yang mana?" jadi pertanyaan yang tidak perlu ada. Salinan
+# gandanya dihapus; tinggal satu sumber.
+FOOD_NUTRITION_CSV = DATA_DIR / "food_nutrition.csv"
 
 
 TABLES = {
@@ -28,19 +30,7 @@ TABLES = {
         "csv": FOOD_NUTRITION_CSV,
         "columns": ["id", "calories", "proteins", "fat", "carbohydrate", "name", "image"],
         "primary_key": "id",
-        "create": {
-            "mysql": """
-                CREATE TABLE IF NOT EXISTS food_nutrition (
-                    id INT PRIMARY KEY,
-                    calories DOUBLE,
-                    proteins DOUBLE,
-                    fat DOUBLE,
-                    carbohydrate DOUBLE,
-                    name VARCHAR(255),
-                    image TEXT
-                )
-            """,
-            "postgres": """
+        "create": """
                 CREATE TABLE IF NOT EXISTS food_nutrition (
                     id INTEGER PRIMARY KEY,
                     calories DOUBLE PRECISION,
@@ -51,7 +41,6 @@ TABLES = {
                     image TEXT
                 )
             """,
-        },
     },
     "gym_members": {
         "csv": DATA_DIR / "gym_members.csv",
@@ -96,30 +85,7 @@ TABLES = {
             "Activity_Level": "activity_level",
             "Fitness_Goal": "fitness_goal",
         },
-        "create": {
-            "mysql": """
-                CREATE TABLE IF NOT EXISTS gym_members (
-                    member_id INT AUTO_INCREMENT PRIMARY KEY,
-                    age INT,
-                    gender VARCHAR(20),
-                    weight_kg DOUBLE,
-                    height_m DOUBLE,
-                    max_bpm INT,
-                    avg_bpm INT,
-                    resting_bpm INT,
-                    session_duration_hours DOUBLE,
-                    calories_burned DOUBLE,
-                    workout_type VARCHAR(100),
-                    fat_percentage DOUBLE,
-                    water_intake_liters DOUBLE,
-                    workout_frequency_days_week INT,
-                    experience_level INT,
-                    bmi DOUBLE,
-                    activity_level VARCHAR(50),
-                    fitness_goal VARCHAR(50)
-                )
-            """,
-            "postgres": """
+        "create": """
                 CREATE TABLE IF NOT EXISTS gym_members (
                     member_id SERIAL PRIMARY KEY,
                     age INTEGER,
@@ -141,7 +107,6 @@ TABLES = {
                     fitness_goal VARCHAR(50)
                 )
             """,
-        },
     },
     "training_program": {
         "csv": DATA_DIR / "training_program.csv",
@@ -168,21 +133,7 @@ TABLES = {
             "Rating": "rating",
             "RatingDesc": "rating_desc",
         },
-        "create": {
-            "mysql": """
-                CREATE TABLE IF NOT EXISTS training_program (
-                    program_id INT PRIMARY KEY,
-                    title VARCHAR(255),
-                    description TEXT,
-                    type VARCHAR(100),
-                    body_part VARCHAR(100),
-                    equipment VARCHAR(100),
-                    level VARCHAR(50),
-                    rating DOUBLE,
-                    rating_desc TEXT
-                )
-            """,
-            "postgres": """
+        "create": """
                 CREATE TABLE IF NOT EXISTS training_program (
                     program_id INTEGER PRIMARY KEY,
                     title VARCHAR(255),
@@ -195,12 +146,12 @@ TABLES = {
                     rating_desc TEXT
                 )
             """,
-        },
     },
 }
 
 
 def main() -> None:
+    """Buat tabel dataset lalu isi dari berkas CSV; secara bawaan tabel dikosongkan dulu."""
     parser = argparse.ArgumentParser(description="Create dataset tables and insert CSV rows.")
     parser.add_argument(
         "--append",
@@ -209,39 +160,31 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not using_sql():
-        raise SystemExit("Set MYSQL=true or POSTGRES=true in .env before running this script.")
-
-    driver = database_driver()
-    driver = "postgres" if driver == "postgresql" else driver
-    if driver not in {"mysql", "postgres"}:
-        raise SystemExit(f"Unsupported database driver: {driver}")
-
     store = SQLStore()
     with store.connection() as connection:
         with connection.cursor() as cursor:
             for table_name, spec in TABLES.items():
-                create_table(cursor, spec, driver)
+                create_table(cursor, spec)
                 if not args.append:
-                    truncate_table(cursor, table_name, driver)
+                    truncate_table(cursor, table_name)
                 rows = load_csv_rows(spec)
-                insert_rows(cursor, table_name, spec, rows, store.placeholder(), driver)
+                insert_rows(cursor, table_name, spec, rows, store.placeholder())
                 action = "upserted/appended" if args.append else "inserted"
                 print(f"{table_name}: {action} {len(rows)} rows")
 
 
-def create_table(cursor, spec: dict, driver: str) -> None:
-    cursor.execute(spec["create"][driver])
+def create_table(cursor, spec: dict) -> None:
+    """Jalankan DDL CREATE TABLE untuk satu tabel dataset."""
+    cursor.execute(spec["create"])
 
 
-def truncate_table(cursor, table_name: str, driver: str) -> None:
-    if driver == "postgres":
-        cursor.execute(f"TRUNCATE TABLE {table_name} RESTART IDENTITY")
-    else:
-        cursor.execute(f"TRUNCATE TABLE {table_name}")
+def truncate_table(cursor, table_name: str) -> None:
+    """Kosongkan satu tabel sebelum diisi ulang, sekaligus mereset urutan id-nya."""
+    cursor.execute(f"TRUNCATE TABLE {table_name} RESTART IDENTITY")
 
 
 def load_csv_rows(spec: dict) -> list[tuple]:
+    """Baca CSV satu tabel, samakan nama kolom dan urutannya, lalu ubah jadi daftar tuple."""
     df = pd.read_csv(spec["csv"])
     if "rename" in spec:
         df = df.rename(columns=spec["rename"])
@@ -252,7 +195,8 @@ def load_csv_rows(spec: dict) -> list[tuple]:
     return [tuple(row) for row in df.itertuples(index=False, name=None)]
 
 
-def insert_rows(cursor, table_name: str, spec: dict, rows: list[tuple], placeholder: str, driver: str) -> None:
+def insert_rows(cursor, table_name: str, spec: dict, rows: list[tuple], placeholder: str) -> None:
+    """Sisipkan seluruh baris sekaligus; bila ada kunci primer, baris lama diperbarui bukan digandakan."""
     if not rows:
         return
     columns = spec["columns"]
@@ -263,12 +207,8 @@ def insert_rows(cursor, table_name: str, spec: dict, rows: list[tuple], placehol
 
     if primary_key:
         update_columns = [column for column in columns if column != primary_key]
-        if driver == "mysql":
-            assignments = ", ".join([f"{column}=VALUES({column})" for column in update_columns])
-            conflict_sql = f" ON DUPLICATE KEY UPDATE {assignments}"
-        else:
-            assignments = ", ".join([f"{column}=EXCLUDED.{column}" for column in update_columns])
-            conflict_sql = f" ON CONFLICT ({primary_key}) DO UPDATE SET {assignments}"
+        assignments = ", ".join([f"{column}=EXCLUDED.{column}" for column in update_columns])
+        conflict_sql = f" ON CONFLICT ({primary_key}) DO UPDATE SET {assignments}"
 
     cursor.executemany(
         f"INSERT INTO {table_name} ({column_sql}) VALUES ({placeholder_sql}){conflict_sql}",

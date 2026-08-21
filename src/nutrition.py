@@ -26,6 +26,8 @@ GOAL_PROTEIN_GRAMS_PER_KG = {
 
 @dataclass(frozen=True)
 class NutritionResult:
+    """Hasil perhitungan gizi satu pengguna: BMI, BMR, TDEE, target kalori, dan makro."""
+
     bmi: float
     bmi_status: str
     bmr: float
@@ -37,11 +39,8 @@ class NutritionResult:
     fat_g: float
 
 
-def calculate_age(current_year: int, birth_year: int) -> int:
-    return max(13, current_year - birth_year)
-
-
 def calculate_bmi(weight_kg: float, height_cm: float) -> float:
+    """Hitung BMI dari berat (kg) dan tinggi (cm)."""
     height_m = height_cm / 100
     if height_m <= 0:
         raise ValueError("Height must be greater than zero.")
@@ -49,6 +48,7 @@ def calculate_bmi(weight_kg: float, height_cm: float) -> float:
 
 
 def classify_bmi(bmi: float) -> str:
+    """Terjemahkan angka BMI ke kategori Asia-Pasifik (Kurus s.d. Obesitas II)."""
     if bmi < 18.5:
         return "Kurus"
     if bmi < 23:
@@ -61,6 +61,7 @@ def classify_bmi(bmi: float) -> str:
 
 
 def calculate_bmr(gender: str, weight_kg: float, height_cm: float, age: int) -> float:
+    """Hitung BMR (kalori basal) dengan rumus Mifflin-St Jeor."""
     gender_key = gender.strip().lower()
     if gender_key == "male":
         return 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
@@ -68,6 +69,7 @@ def calculate_bmr(gender: str, weight_kg: float, height_cm: float, age: int) -> 
 
 
 def calculate_ideal_weight(height_cm: float, gender: str) -> float:
+    """Hitung berat badan ideal dengan rumus Broca (koreksi 10% pria, 15% wanita)."""
     base = height_cm - 100
     correction = 0.1 if gender.strip().lower() == "male" else 0.15
     return base - (base * correction)
@@ -82,6 +84,7 @@ def calculate_nutrition_targets(
     activity_level: str,
     fitness_goal: str,
 ) -> NutritionResult:
+    """Rangkai BMI, BMR, TDEE, target kalori, dan pembagian makro jadi satu NutritionResult."""
     bmi = calculate_bmi(weight_kg, height_cm)
     bmr = calculate_bmr(gender, weight_kg, height_cm, age)
     activity_factor = ACTIVITY_FACTORS.get(activity_level, ACTIVITY_FACTORS["Medium"])

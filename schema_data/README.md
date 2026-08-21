@@ -1,10 +1,9 @@
 # Schema Data
 
-Folder ini berisi script Python untuk membuat tabel dan insert data ke database SQL yang aktif di `.env`.
+Skrip Python untuk membuat tabel dan mengisi data ke database PostgreSQL
+(Supabase) yang dikonfigurasi di `.env`.
 
 ## Dataset CSV
-
-Script:
 
 ```bash
 python3 schema_data/import_csv_to_db.py
@@ -16,51 +15,46 @@ Tabel dataset yang dibuat:
 - `gym_members` dari `data/gym_members.csv`
 - `training_program` dari `data/training_program.csv`
 
-Default script akan mengosongkan tabel dataset terlebih dahulu lalu insert ulang data CSV. Ini mode paling aman untuk refresh data:
+Secara bawaan skrip mengosongkan tabel dataset lebih dulu lalu memasukkan ulang
+isi CSV. Ini mode paling aman untuk menyegarkan data.
 
-```bash
-python3 schema_data/import_csv_to_db.py
-```
-
-Untuk append tanpa truncate:
+Untuk menambah tanpa mengosongkan:
 
 ```bash
 python3 schema_data/import_csv_to_db.py --append
 ```
 
-Pada mode `--append`, tabel yang punya primary key dari CSV (`food_nutrition.id` dan `training_program.program_id`) memakai upsert, jadi data lama dengan primary key yang sama akan di-update dan tidak memunculkan error duplicate entry.
+Pada mode `--append`, tabel yang punya primary key dari CSV
+(`food_nutrition.id` dan `training_program.program_id`) memakai upsert, jadi
+baris lama dengan primary key yang sama akan diperbarui dan tidak memunculkan
+error duplicate key.
 
-## Database JSON
+## Tabel aplikasi
 
-Script:
+Tabel `users`, `calorie_records`, `meal_recommendations`, dan
+`workout_recommendations` **tidak perlu diimpor**. Semuanya dibuat dan
+diselaraskan otomatis oleh `ensure_schema()` di `src/database.py` setiap kali
+aplikasi dijalankan.
 
-```bash
-python3 schema_data/import_json_to_db.py
-```
-
-Tabel aplikasi yang dibuat:
-
-- `users` dari `database/user.json`
-- `calorie_records` dari `database/calorie.json`
-- `meal_recommendations` dari `database/meal_recommendation.json`
-- `workout_recommendations` dari `database/workout_recommendation.json`
-
-Default script JSON memakai upsert, jadi aman dijalankan berulang tanpa duplicate primary key. Untuk menghapus isi tabel JSON-backed terlebih dahulu lalu import ulang:
-
-```bash
-python3 schema_data/import_json_to_db.py --replace
-```
-
-Switch database tetap mengikuti `.env`:
+## Konfigurasi
 
 ```env
-MYSQL=true
-POSTGRES=false
+POSTGRES_HOST=...
+POSTGRES_PORT=5432
+POSTGRES_USER=...
+POSTGRES_PASSWORD=...
+POSTGRES_DATABASE=postgres
+
+# Opsional. Default 'public'. Skrip di tests/ mengisinya sendiri
+# dengan schema sekali-pakai supaya tidak menyentuh data asli.
+# POSTGRES_SCHEMA=public
 ```
 
-atau:
+## Skrip lain
 
-```env
-MYSQL=false
-POSTGRES=true
-```
+| Skrip | Kegunaan |
+|---|---|
+| `migrate_user_clusters.py` | Hitung ulang klaster seluruh pengguna terhadap model aktif (`--terapkan` untuk menulis) |
+| `merge_foods_dataset.py` | Gabungkan dataset menu tambahan ke `food_nutrition.csv` (`--tulis`, `--db`) |
+| `repair_food_images.py` | Cari gambar pengganti untuk menu yang tautannya mati (`--tulis`, `--db`) |
+| `fetch_lottie_assets.py` | Unduh ulang animasi Lottie dan pemutarnya ke `assets/` |

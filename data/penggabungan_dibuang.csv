@@ -1,0 +1,886 @@
+name,alasan
+Breastmilk (> 10 days post partum),Susu formula / MPASI pabrikan
+kemiri,Kacang / biji / umbi mentah
+adonan tepung beras,Tepung / bahan mentah
+adonan tepung tapioka,Tepung / bahan mentah
+adonan tepung terigu,Tepung / bahan mentah
+beras ketan hitam,Tepung / bahan mentah
+beras ketan putih giling,Tepung / bahan mentah
+beras ketan putih tumbuk,Tepung / bahan mentah
+beras merah + beras pth campur,Tepung / bahan mentah
+beras merah giling,Tepung / bahan mentah
+beras merah tumbuk,Tepung / bahan mentah
+beras putih giling,Tepung / bahan mentah
+beras putih tumbuk,Tepung / bahan mentah
+bihun,Bahan / topping / bukan hidangan utuh
+bihun goreng,nama sudah ada di dataset lama
+tepung beras ketan putih,Tepung / bahan mentah
+tepung beras merah,Tepung / bahan mentah
+temu ireng,Bahan / topping / bukan hidangan utuh
+tepung beras,Tepung / bahan mentah
+tepung kentang,Tepung / bahan mentah
+tepung jagung putih,Tepung / bahan mentah
+tepung sagu,Tepung / bahan mentah
+tepung maizena,Tepung / bahan mentah
+tepung jagung kuning,Tepung / bahan mentah
+tepung garut / arrowroot,Tepung / bahan mentah
+tepung gaplek,Tepung / bahan mentah
+tepung tapioka,Tepung / bahan mentah
+tepung terigu,Tepung / bahan mentah
+blendung/ brontol,Kacang / biji / umbi mentah
+ubi jalar merah,Kacang / biji / umbi mentah
+ubi jalar kuning,Kacang / biji / umbi mentah
+ubi jalar ungu,Kacang / biji / umbi mentah
+ubi jalar putih,Kacang / biji / umbi mentah
+uwi,Kacang / biji / umbi mentah
+campuran beras,Tepung / bahan mentah
+cantel,Kacang / biji / umbi mentah
+gadung mentah,Tepung / bahan mentah
+ganyong mentah,Tepung / bahan mentah
+gaplek,Kacang / biji / umbi mentah
+garut / irut mentah,Tepung / bahan mentah
+gembili / mbolo,Kacang / biji / umbi mentah
+jagung kuning pipil baru,Kacang / biji / umbi mentah
+jagung kuning pipil lama,Kacang / biji / umbi mentah
+jagung kuning segar,Tepung / bahan mentah
+jagung muda berjanggel,Kacang / biji / umbi mentah
+jagung putih pipil baru,Kacang / biji / umbi mentah
+jagung putih pipil lama,Kacang / biji / umbi mentah
+jagung putih segar,Tepung / bahan mentah
+kathul beras merah,Tepung / bahan mentah
+katul beras,Tepung / bahan mentah
+kentang,Kacang / biji / umbi mentah
+kentang hitam,Kacang / biji / umbi mentah
+kimpul mentah,Tepung / bahan mentah
+krecek irut,Tepung / bahan mentah
+makaroni,Bahan / topping / bukan hidangan utuh
+mie ayam,nama sudah ada di dataset lama
+mie bakso,nama sudah ada di dataset lama
+mie basah,nama sudah ada di dataset lama
+mie kering,nama sudah ada di dataset lama
+mie kering,nama sudah ada di dataset lama
+mie soun,Bahan / topping / bukan hidangan utuh
+misoa,Bahan / topping / bukan hidangan utuh
+nasi goreng,nama sudah ada di dataset lama
+nasi jagung,nama sudah ada di dataset lama
+nasi tim,nama sudah ada di dataset lama
+nasi uduk,nama sudah ada di dataset lama
+pati ganyong,Tepung / bahan mentah
+pati irut / kerut,Tepung / bahan mentah
+roti pawa rp.50,Nama bukan nama menu
+sagu lempeng,Bahan / topping / bukan hidangan utuh
+sarimie,Bahan / topping / bukan hidangan utuh
+senthe,Kacang / biji / umbi mentah
+singkong kuning,Kacang / biji / umbi mentah
+singkong oyek,Kacang / biji / umbi mentah
+singkong parut,Kacang / biji / umbi mentah
+singkong putih,Kacang / biji / umbi mentah
+supermie,Bahan / topping / bukan hidangan utuh
+suweg mentah,Tepung / bahan mentah
+talas mentah,Tepung / bahan mentah
+tempe gembus,Bahan / topping / bukan hidangan utuh
+tempe kedele busuk,Bahan / topping / bukan hidangan utuh
+tempe koro benguk,Bahan / topping / bukan hidangan utuh
+tempe koro pedang,Bahan / topping / bukan hidangan utuh
+tempe lamtoro,Bahan / topping / bukan hidangan utuh
+tepung hunkwee,Tepung / bahan mentah
+toge kacang kedele mentah,Tepung / bahan mentah
+toge kacang hijau mentah,Tepung / bahan mentah
+toge kacang tolo mentah,Tepung / bahan mentah
+wijen,Kacang / biji / umbi mentah
+gucang,Daging / ikan mentah (bukan hidangan)
+gude,Kacang / biji / umbi mentah
+jengkol,Kacang / biji / umbi mentah
+kacang hijau,Kacang / biji / umbi mentah
+kacang kapri mentah,Tepung / bahan mentah
+kacang kapri muda mentah,Tepung / bahan mentah
+kacang merah,Kacang / biji / umbi mentah
+kacang mete  kulit mentah,Tepung / bahan mentah
+kacang mete kupas kulit,Kacang / biji / umbi mentah
+kacang panjang biji,Kacang / biji / umbi mentah
+kacang panjang mentah,Tepung / bahan mentah
+kacang tanah kulit,Kacang / biji / umbi mentah
+kacang tanah muda kulit,Kacang / biji / umbi mentah
+kacang tanah tanpa kulit,Kacang / biji / umbi mentah
+kacang tolo (tonggak),Kacang / biji / umbi mentah
+kapri muda mentah,Tepung / bahan mentah
+kecipir biji,nama sudah ada di dataset lama
+kecipir muda mentah,Tepung / bahan mentah
+kedele hitam,Kacang / biji / umbi mentah
+kedele kuning,Kacang / biji / umbi mentah
+kembang tahu mentah,Tepung / bahan mentah
+kemiri,Kacang / biji / umbi mentah
+ketapang (buah),Kacang / biji / umbi mentah
+kluwih biji mentah,Tepung / bahan mentah
+koro benguk biji,Kacang / biji / umbi mentah
+koro uceng,Kacang / biji / umbi mentah
+koro wedus,Kacang / biji / umbi mentah
+koro wedus buah muda,Kacang / biji / umbi mentah
+lamtoro biji muda,Bahan / topping / bukan hidangan utuh
+lamtoro biji tua,Bahan / topping / bukan hidangan utuh
+nangka biji,Buah segar
+petai segar,Tepung / bahan mentah
+tahu,nama sudah ada di dataset lama
+tahu goreng,nama sudah ada di dataset lama
+air kelapa tua,Minuman
+ampas kelapa,Tepung / bahan mentah
+anggur hutan,Buah segar
+apel,Buah segar
+arbei,Buah segar
+asam mangga,Buah segar
+asam masak di pohon,Buah segar
+belimbing,Buah segar
+belimbing wuluh,Buah segar
+buah pisang susu,Buah segar
+bungkil kelapa,Tepung / bahan mentah
+cempedak,nama sudah ada di dataset lama
+cerme,Buah segar
+cimplukan,Buah segar
+cipleng / jeblokan,Buah segar
+duku,Buah segar
+durian,Buah segar
+duwet,Buah segar
+gori / nangka muda mentah,Tepung / bahan mentah
+jambu air,Buah segar
+jambu biji,Buah segar
+jambu bol,Buah segar
+jambu monyet buah,Buah segar
+jantung pisang,Buah segar
+jeruk bali,Buah segar
+jeruk garut,Buah segar
+jeruk manis,Buah segar
+jeruk nipis,Buah segar
+jus alpukat,Minuman
+jus tomat,Minuman
+kasreng,Buah segar
+kedondong masak,Buah segar
+kedondong muda,Buah segar
+kelapa 1/2 tua daging,Kacang / biji / umbi mentah
+kelapa ampas,Kacang / biji / umbi mentah
+kelapa muda air,Kacang / biji / umbi mentah
+kelapa muda daging,Kacang / biji / umbi mentah
+kelapa muda daging + air,Kacang / biji / umbi mentah
+kelapa parutan,Kacang / biji / umbi mentah
+kelapa tua daging,Kacang / biji / umbi mentah
+kelengkeng,Buah segar
+kembang turi rebus belu,Sayur / daun mentah
+kenthos kelapa,Kacang / biji / umbi mentah
+kepel,Buah segar
+kesemek / buah genit,Buah segar
+kluwih mentah,Tepung / bahan mentah
+kokosan,Buah segar
+kolang kaling,Minuman
+kulit melinjo,Tepung / bahan mentah
+kurma,Buah segar
+langsat,Buah segar
+mangga gedong / gadung,Buah segar
+mangga golek,Buah segar
+mangga harum manis,Buah segar
+mangga indramayu,Buah segar
+mangga keong masak,Buah segar
+mangga kopek,Buah segar
+mangga kopyor,Buah segar
+mangga krasak,Buah segar
+mangga kuweni,Buah segar
+mangga masak,Buah segar
+mangga muda,Buah segar
+mangga nanas,Buah segar
+mangga pakel,Buah segar
+mangga sengir masak,Buah segar
+mangga sepat,Buah segar
+mangga telo,Buah segar
+manggis,Buah segar
+matuwa,Buah segar
+melinjo (buah),Buah segar
+menteng / kemundung,Buah segar
+nanas,Buah segar
+nangka masak di pohon,Buah segar
+pepaya,Buah segar
+pepaya muda mentah,Tepung / bahan mentah
+pisang ambon,Buah segar
+pisang ambon hong matang,Buah segar
+pisang ambon mentah,Tepung / bahan mentah
+pisang angle,Buah segar
+pisang asem matang,Buah segar
+pisang hijau,Buah segar
+pisang jambe,Buah segar
+pisang jeklek,Buah segar
+pisang kapok gembrot,Buah segar
+pisang kapok kuning,Buah segar
+pisang kele,Buah segar
+pisang kepok,Buah segar
+pisang kepok bawen / suluh,Buah segar
+pisang kepok bawen mentah,Tepung / bahan mentah
+pisang kepok kuning mentah,Tepung / bahan mentah
+pisang kepok putih mentah,Tepung / bahan mentah
+pisang klutuk matang,Buah segar
+pisang kreak matang,Buah segar
+pisang mas,Buah segar
+pisang potho,Buah segar
+pisang potho mentah,Tepung / bahan mentah
+pisang prasmen,Buah segar
+pisang prasmen mentah,Tepung / bahan mentah
+pisang pulut,Buah segar
+pisang raja,Buah segar
+pisang raja bandung,Buah segar
+pisang raja bandung mentah,Tepung / bahan mentah
+pisang raja kawista matang,Buah segar
+pisang raja mentah / muda,Buah segar
+pisang raja nangka matang,Buah segar
+pisang raja nangka mentah,Tepung / bahan mentah
+pisang raja sereh (susu),Bumbu / rempah / penyedap
+pisang raja uli,Buah segar
+pisang rama,Buah segar
+pisang rayap matang,Buah segar
+pisang santen,Buah segar
+pisang siam,Buah segar
+pondoh kelapa,Buah segar
+rambutan,Buah segar
+rambutan aceh,Buah segar
+salak,Buah segar
+santan (kelapa dan air),Minyak / lemak murni
+santan (kelapa saja),Minyak / lemak murni
+sawo,Buah segar
+sawo bludru,Buah segar
+sawo duren,Buah segar
+semangka,Buah segar
+semangka muda,Buah segar
+sirsak,Buah segar
+srikaya,Buah segar
+sukun,Buah segar
+talok / kersen,Buah segar
+alpokat,Buah segar
+asparagus putih segar,Tepung / bahan mentah
+bawang merah,Sayur / daun mentah
+bawang putih,Sayur / daun mentah
+bayam merah,Sayur / daun mentah
+bayam segar,Tepung / bahan mentah
+bengkuang,Sayur / daun mentah
+bening bayam belu,Nama bukan nama menu
+bening selada air and kangkung belu,Nama bukan nama menu
+bening selada air belu,Nama bukan nama menu
+tekokak,Sayur / daun mentah
+terong putih mentah,Tepung / bahan mentah
+terong belanda / ungu,Sayur / daun mentah
+tumis bayam and sawi belu,Nama bukan nama menu
+tomat muda,Sayur / daun mentah
+tumis buah pepaya muda belu,Nama bukan nama menu
+tumis bayam and sawi and timun belu,Nama bukan nama menu
+tumis buah labu waluh belu,Nama bukan nama menu
+tumis bayam belu,Nama bukan nama menu
+tomat masak,Sayur / daun mentah
+tumis pucuk labu waluh belu,Nama bukan nama menu
+tumis daun singkong belu,Nama bukan nama menu
+tumis kangkung belu,Nama bukan nama menu
+tumis selada air belu,Nama bukan nama menu
+tumis kacang panjang belu,Nama bukan nama menu
+tumis terong belu,Nama bukan nama menu
+blusdru,Sayur / daun mentah
+uceng,Sayur / daun mentah
+waluh kuning mentah,Tepung / bahan mentah
+waluh beligo,Sayur / daun mentah
+buncis mentah,Tepung / bahan mentah
+bunga bawang merah,Sayur / daun mentah
+bunga krandan,Sayur / daun mentah
+cabe merah,Sayur / daun mentah
+cabe rawit,Sayur / daun mentah
+cesim,Sayur / daun mentah
+curing / kenikir,Sayur / daun mentah
+daun bawang,Sayur / daun mentah
+daun bawang merah,Sayur / daun mentah
+daun beluntas mentah,Tepung / bahan mentah
+daun gambas mentah,Tepung / bahan mentah
+daun jambu mete muda,Sayur / daun mentah
+daun kacang panjang,Sayur / daun mentah
+daun katuk mentah,Tepung / bahan mentah
+daun kecipir mentah,Tepung / bahan mentah
+daun kelor mentah,Tepung / bahan mentah
+daun kemangi mentah,Tepung / bahan mentah
+daun koro,Sayur / daun mentah
+daun labu siam mentah,Tepung / bahan mentah
+daun labu waluh mentah,Tepung / bahan mentah
+daun lompong,Sayur / daun mentah
+daun mangkokan mentah,Tepung / bahan mentah
+daun melinjo mentah,Tepung / bahan mentah
+daun pepaya,Sayur / daun mentah
+daun singgrang,Sayur / daun mentah
+daun singkong mentah,Tepung / bahan mentah
+daun tales,Sayur / daun mentah
+daun tlepok,Sayur / daun mentah
+daun ubi jalar,Sayur / daun mentah
+gambas / oyong mentah,Tepung / bahan mentah
+genjer / bengok,Sayur / daun mentah
+gundho,energi menyimpang > 25% dari hitungan makro
+jamur coklat mentah,Obat / jamu
+jamur kuping segar,Obat / jamu
+jamur putih mentah,Obat / jamu
+jamur so,Obat / jamu
+jantung pisang segar,Tepung / bahan mentah
+kangkung,Sayur / daun mentah
+kangkung mentah,Tepung / bahan mentah
+kembang kool mentah,Tepung / bahan mentah
+kembang turi mentah,Tepung / bahan mentah
+ketimun mentah,Tepung / bahan mentah
+kool merah / putih mentah,Tepung / bahan mentah
+krai / mentimun,Sayur / daun mentah
+kuah daging ayam belu,Kuah saja / bukan hidangan utuh
+kuah oseng bayam belu,Kuah saja / bukan hidangan utuh
+kuah sayur kangkung belu,Kuah saja / bukan hidangan utuh
+kuah sayur sawi belu,Kuah saja / bukan hidangan utuh
+labu air mentah,Tepung / bahan mentah
+labu kuning,Sayur / daun mentah
+labu siam mentah,Tepung / bahan mentah
+lobak mentah,Tepung / bahan mentah
+lompong pari mentah,Tepung / bahan mentah
+loncang,Sayur / daun mentah
+pare pahit mentah,Tepung / bahan mentah
+pare ulo mentah,Tepung / bahan mentah
+pepes jamur,Obat / jamu
+rebung mentah,Tepung / bahan mentah
+rebus daun lettuce belu,Nama bukan nama menu
+rebus daun singkong belu,Nama bukan nama menu
+sambal tomat belu,Nama bukan nama menu
+sambal tomato and daging kuda belu,Nama bukan nama menu
+santan daun ubu /campur daun pepaya bel,Minyak / lemak murni
+sawi hijau,Sayur / daun mentah
+sawi putih mentah,Tepung / bahan mentah
+sayur asem,nama sudah ada di dataset lama
+sayur bayam,energi menyimpang > 25% dari hitungan makro
+sayur daun kelor,energi menyimpang > 25% dari hitungan makro
+sayur jantung pisang belu,Nama bukan nama menu
+sayur katuk,energi menyimpang > 25% dari hitungan makro
+sayur nangka belu,Nama bukan nama menu
+sayur sop,nama sudah ada di dataset lama
+selada air mentah,Tepung / bahan mentah
+selada mentah,Tepung / bahan mentah
+seledri,Sayur / daun mentah
+sup a,energi menyimpang > 25% dari hitungan makro
+sup b,energi menyimpang > 25% dari hitungan makro
+telur ayam,Daging / ikan mentah (bukan hidangan)
+telur ayam bagian kuning,Bahan / topping / bukan hidangan utuh
+telur ayam bagian putih,Bahan / topping / bukan hidangan utuh
+telur itik bagian putih,Bahan / topping / bukan hidangan utuh
+telur ikan,Daging / ikan mentah (bukan hidangan)
+telur itik / bebek mentah,Tepung / bahan mentah
+telur itik bagian kuning,Bahan / topping / bukan hidangan utuh
+telur puyuh,Daging / ikan mentah (bukan hidangan)
+telur penyu,Non-halal / satwa liar
+telur merpati,Daging / ikan mentah (bukan hidangan)
+telur puyuh,Daging / ikan mentah (bukan hidangan)
+telur menthok,Daging / ikan mentah (bukan hidangan)
+tepung susu,Susu formula / MPASI pabrikan
+tepung susu neslac 2,Susu formula / MPASI pabrikan
+tepung susu sgm 2,Susu formula / MPASI pabrikan
+tepung susu skim,Susu formula / MPASI pabrikan
+tepung susu lactona 2,Susu formula / MPASI pabrikan
+tepung susu asam,Susu formula / MPASI pabrikan
+minuman susu ultra / ultra milk,Minuman
+susu kambing,Minuman
+susu kental manis,Minuman
+susu sapi,Minuman
+susu segar,Tepung / bahan mentah
+susu skim / tak berlemak cair,Minuman
+abon,nama sudah ada di dataset lama
+ampal,Daging / ikan mentah (bukan hidangan)
+ati ayam,Jeroan / darah
+ayam,nama sudah ada di dataset lama
+babat,Jeroan / darah
+usus menthok,Jeroan / darah
+uthi-uthi mentah,Tepung / bahan mentah
+usus ayam,Jeroan / darah
+usus itik,Jeroan / darah
+buras,nama sudah ada di dataset lama
+corned beef,nama sudah ada di dataset lama
+daging ayam,Daging / ikan mentah (bukan hidangan)
+daging ayam bagian kaki,Daging / ikan mentah (bukan hidangan)
+daging ayam bagian kepala,Daging / ikan mentah (bukan hidangan)
+daging ayam bagian paha,Daging / ikan mentah (bukan hidangan)
+daging ayam bagian sayap,Daging / ikan mentah (bukan hidangan)
+daging biawak mentah,Tepung / bahan mentah
+daging blekok / kuntul,Non-halal / satwa liar
+daging burung bagian kepala,Daging / ikan mentah (bukan hidangan)
+daging burung mentah,Tepung / bahan mentah
+daging domba,Daging / ikan mentah (bukan hidangan)
+daging itik bagian kepala,Daging / ikan mentah (bukan hidangan)
+daging itik bagian paha,Daging / ikan mentah (bukan hidangan)
+daging itik bagian sayap,Daging / ikan mentah (bukan hidangan)
+daging itik/bebek,Daging / ikan mentah (bukan hidangan)
+daging kambing,Daging / ikan mentah (bukan hidangan)
+daging kelelawar,Non-halal / satwa liar
+daging kerbau,Daging / ikan mentah (bukan hidangan)
+daging menthok,Daging / ikan mentah (bukan hidangan)
+daging menthok bagian kaki,Daging / ikan mentah (bukan hidangan)
+daging menthok bagian kepala,Daging / ikan mentah (bukan hidangan)
+daging menthok bagian sayap,Daging / ikan mentah (bukan hidangan)
+daging merpati,Daging / ikan mentah (bukan hidangan)
+daging puyuh,Daging / ikan mentah (bukan hidangan)
+daging sapi,Daging / ikan mentah (bukan hidangan)
+daging tupai,Non-halal / satwa liar
+dendeng sapi,massa makro > 100 g per 100 g
+dideh ayam,Jeroan / darah
+dideh itik,Jeroan / darah
+dideh kambing,Jeroan / darah
+dideh kerbau,Jeroan / darah
+dideh sapi,Jeroan / darah
+hati ayam,Jeroan / darah
+hati biawak,Jeroan / darah
+hati burung,Jeroan / darah
+hati itik,Jeroan / darah
+hati itik bacem,Jeroan / darah
+hati kerbau,Jeroan / darah
+hati menthok,Jeroan / darah
+hati merpati,Jeroan / darah
+hati sapi,Jeroan / darah
+iso sapi mentah usus,Jeroan / darah
+jangkrik,Non-halal / satwa liar
+jantung ayam mentah,Tepung / bahan mentah
+jantung itik,Jeroan / darah
+jantung menthok,Jeroan / darah
+jantung merpati,Jeroan / darah
+jerohan ayam,Jeroan / darah
+jerohan menthok,Jeroan / darah
+kaldu ayam,Daging / ikan mentah (bukan hidangan)
+kikil kambing mentah,Tepung / bahan mentah
+kodok hijau,Non-halal / satwa liar
+kuah daging kambing belu,Kuah saja / bukan hidangan utuh
+kulit daging itik,Tepung / bahan mentah
+laron,Non-halal / satwa liar
+limfa ayam,Jeroan / darah
+limfa sapi,Jeroan / darah
+otak,Jeroan / darah
+otak ayam,Jeroan / darah
+rambak mentah,Tepung / bahan mentah
+rempelo ayam,Jeroan / darah
+rempelo burung,Jeroan / darah
+rempelo itik,Jeroan / darah
+rempelo menthok,Jeroan / darah
+rempelo merpati,Jeroan / darah
+semur daging ayam belu,Nama bukan nama menu
+tawon muda (kangsen),Non-halal / satwa liar
+bedhek,Daging / ikan mentah (bukan hidangan)
+belut segar mentah,Tepung / bahan mentah
+telur ikan lele,Bahan / topping / bukan hidangan utuh
+telur ikan kating,Bahan / topping / bukan hidangan utuh
+telur ikan gabus,Bahan / topping / bukan hidangan utuh
+telur ikan luthok mentah,Tepung / bahan mentah
+telur ikan bethik mentah,Tepung / bahan mentah
+tepung ikan teri,Tepung / bahan mentah
+terasi merah,Bumbu / rempah / penyedap
+undur-undur,Non-halal / satwa liar
+udang segar,Tepung / bahan mentah
+udang kering,Daging / ikan mentah (bukan hidangan)
+cakalang,Daging / ikan mentah (bukan hidangan)
+cumi-cumi segar,Tepung / bahan mentah
+hati ikan bojor,Jeroan / darah
+ikan asin kering,nama sudah ada di dataset lama
+ikan baleng segar,Tepung / bahan mentah
+ikan bambangan,Daging / ikan mentah (bukan hidangan)
+ikan bandeng,Daging / ikan mentah (bukan hidangan)
+ikan banyara sedang mentah,Tepung / bahan mentah
+ikan bawal,Daging / ikan mentah (bukan hidangan)
+ikan belanak,Daging / ikan mentah (bukan hidangan)
+ikan bethik,Daging / ikan mentah (bukan hidangan)
+ikan bojor segar,Tepung / bahan mentah
+ikan boso mentah,Tepung / bahan mentah
+ikan dares mentah,Tepung / bahan mentah
+ikan gabus kering,Daging / ikan mentah (bukan hidangan)
+ikan gabus segar,Tepung / bahan mentah
+ikan hiu,Daging / ikan mentah (bukan hidangan)
+ikan jempol,Daging / ikan mentah (bukan hidangan)
+ikan juwi,Daging / ikan mentah (bukan hidangan)
+ikan kacangan,Daging / ikan mentah (bukan hidangan)
+ikan kacap,Daging / ikan mentah (bukan hidangan)
+ikan kakap,Daging / ikan mentah (bukan hidangan)
+ikan kating,Daging / ikan mentah (bukan hidangan)
+ikan kembung,Daging / ikan mentah (bukan hidangan)
+ikan kiper mentah,Tepung / bahan mentah
+ikan kuah rebus belu,Nama bukan nama menu
+ikan lawes,Daging / ikan mentah (bukan hidangan)
+ikan layang,Daging / ikan mentah (bukan hidangan)
+ikan lele,Daging / ikan mentah (bukan hidangan)
+ikan lele dumbo,Daging / ikan mentah (bukan hidangan)
+ikan lemuru,Daging / ikan mentah (bukan hidangan)
+ikan lukas mentah,Tepung / bahan mentah
+ikan luthok,Daging / ikan mentah (bukan hidangan)
+ikan mas goreng,nama sudah ada di dataset lama
+ikan mas pepes,nama sudah ada di dataset lama
+ikan mas segar,Tepung / bahan mentah
+ikan merah kecil,Daging / ikan mentah (bukan hidangan)
+ikan moto botor,Daging / ikan mentah (bukan hidangan)
+ikan mujair dendeng mentah,Tepung / bahan mentah
+ikan mujair segar,Tepung / bahan mentah
+ikan muntreng segar,Tepung / bahan mentah
+ikan pe,Daging / ikan mentah (bukan hidangan)
+ikan peda banjar,Daging / ikan mentah (bukan hidangan)
+ikan pepetek,Daging / ikan mentah (bukan hidangan)
+ikan rebon kering,Daging / ikan mentah (bukan hidangan)
+ikan rebon segar,Tepung / bahan mentah
+ikan salem segar,Tepung / bahan mentah
+ikan sasi segar,Tepung / bahan mentah
+ikan segar,Tepung / bahan mentah
+ikan selar kering,Daging / ikan mentah (bukan hidangan)
+ikan selar segar,Tepung / bahan mentah
+ikan sepat kering,Daging / ikan mentah (bukan hidangan)
+ikan sepat segar,Tepung / bahan mentah
+ikan sidat,Daging / ikan mentah (bukan hidangan)
+ikan surung,Daging / ikan mentah (bukan hidangan)
+ikan tawes/ bader,Daging / ikan mentah (bukan hidangan)
+ikan tempel mentah,Tepung / bahan mentah
+ikan tengiri,Daging / ikan mentah (bukan hidangan)
+ikan teri bubuk,Daging / ikan mentah (bukan hidangan)
+ikan teri goreng belu,Nama bukan nama menu
+ikan teri nasi kering,Daging / ikan mentah (bukan hidangan)
+ikan teri segar,Tepung / bahan mentah
+ikan teri tawar kering,Daging / ikan mentah (bukan hidangan)
+ikan terongan,Daging / ikan mentah (bukan hidangan)
+ikan tongkol,Daging / ikan mentah (bukan hidangan)
+ikan wader,Daging / ikan mentah (bukan hidangan)
+ikan wedok,Daging / ikan mentah (bukan hidangan)
+ikan wedok kering,Daging / ikan mentah (bukan hidangan)
+kepiting air tawar / yuyu,Daging / ikan mentah (bukan hidangan)
+kepiting laut,Daging / ikan mentah (bukan hidangan)
+kerang,Daging / ikan mentah (bukan hidangan)
+samba goreng sarden belu,Nama bukan nama menu
+gajih ayam,Minyak / lemak murni
+gajih sapi,Minyak / lemak murni
+kethak,Minyak / lemak murni
+lemak kerbau,Minyak / lemak murni
+margarin,Minyak / lemak murni
+mentega,Minyak / lemak murni
+minyak gajih,Minyak / lemak murni
+minyak ikan,Minyak / lemak murni
+minyak kacang tanah,Minyak / lemak murni
+minyak kelapa,Minyak / lemak murni
+minyak kelapa sawit,Minyak / lemak murni
+minyak sayur (indomie dll),Minyak / lemak murni
+minyak wijen,Minyak / lemak murni
+santan,Minyak / lemak murni
+agar agar 1 with coconut milk,Bahan / topping / bukan hidangan utuh
+agar agar 2 without coconut milk,Bahan / topping / bukan hidangan utuh
+agar inaco with coconut milk,Bahan / topping / bukan hidangan utuh
+dhelco coklat stick,Biskuit / snack bermerek
+es mambo/es lilin,Minuman
+gula aren,Gula / pemanis
+gula batu,Gula / pemanis
+gula kelapa,Gula / pemanis
+gula merah tebu belum dimurnikan,Gula / pemanis
+gula pasir,Gula / pemanis
+gula supra,Gula / pemanis
+kethak + gula,Minyak / lemak murni
+madu,Gula / pemanis
+meises,Bahan / topping / bukan hidangan utuh
+miki jelly,Bahan / topping / bukan hidangan utuh
+mutiara,Kacang / biji / umbi mentah
+permen,Gula / pemanis
+setrup / sirup,Gula / pemanis
+tebu,Gula / pemanis
+adonan kopi + gula pasir,Tepung / bahan mentah
+air gula - belu,Minuman
+teh manis belu,Minuman
+daun cincau,Sayur / daun mentah
+gula kopi,Gula / pemanis
+jamu,Obat / jamu
+jus alpukat susu,Minuman
+jus anggur,Minuman
+jus jeruk pepaya,Minuman
+jus jeruk peras,Minuman
+jus mannga,Minuman
+jus melon,Minuman
+jus papaya,Minuman
+kopi (powder),Minuman
+kopi bagian yang larut,Minuman
+larutan gula and salt,Minuman
+larutan oralit,Obat / jamu
+legen aren,Minuman
+legen kelapa,Minuman
+lemonade,Minuman
+minuman anggur,Minuman
+minuman buah vita,Minuman
+minuman go go strawbery,Minuman
+sprite fanta coca cola dll,Minuman
+susu milo/ milo choklat,Biskuit / snack bermerek
+susu sgm (belu),Susu formula / MPASI pabrikan
+teh,Minuman
+teh cap bunga mawar,Minuman
+teh kotak,Minuman
+teh kotak,Minuman
+teh manis,Minuman
+agar-agar,Bahan / topping / bukan hidangan utuh
+arafik,Nama bukan nama menu
+bawang goreng,Sayur / daun mentah
+bika ambon,nama sudah ada di dataset lama
+biscuit,Biskuit / snack bermerek
+biscuit astor,Biskuit / snack bermerek
+biscuit barry sandwich,Biskuit / snack bermerek
+biscuit big royal,Biskuit / snack bermerek
+biscuit big royal,Biskuit / snack bermerek
+biscuit bola bola,Biskuit / snack bermerek
+biscuit coklat burbon,Biskuit / snack bermerek
+biscuit coklat togo,Biskuit / snack bermerek
+biscuit crackers konghuan,Biskuit / snack bermerek
+biscuit cripsy crackers,Biskuit / snack bermerek
+biscuit famela,Biskuit / snack bermerek
+biscuit farley,Biskuit / snack bermerek
+biscuit gabin special selecta (mentega.,Minyak / lemak murni
+biscuit gem bunga (terigu. gula. tapiok,Biskuit / snack bermerek
+biscuit gloria,Biskuit / snack bermerek
+biscuit helti,Biskuit / snack bermerek
+biscuit interbis,Biskuit / snack bermerek
+biscuit isi kagang,Biskuit / snack bermerek
+biscuit kacang,Biskuit / snack bermerek
+biscuit kering/ bolu kering,Biskuit / snack bermerek
+biscuit london,Biskuit / snack bermerek
+biscuit malkist crackers (tepung terigu,Biskuit / snack bermerek
+biscuit marie cba (tepung terigu. gula.,Biskuit / snack bermerek
+biscuit marie susu,Biskuit / snack bermerek
+biscuit mari-mari (tepung jagung. tepun,Biskuit / snack bermerek
+biscuit mentega rp. 100,Minyak / lemak murni
+biscuit milna,Susu formula / MPASI pabrikan
+biscuit monde,Biskuit / snack bermerek
+biscuit panda-pandaan/bolu pangang,Biskuit / snack bermerek
+biscuit permen,Gula / pemanis
+biscuit piramid,Biskuit / snack bermerek
+biscuit queen sandwich (terigu. gula. m,Biskuit / snack bermerek
+biscuit regal,Biskuit / snack bermerek
+biscuit regal marie,Biskuit / snack bermerek
+biscuit roma,Biskuit / snack bermerek
+biscuit sitaba,Biskuit / snack bermerek
+biscuit stick,Biskuit / snack bermerek
+tempe goreng,nama sudah ada di dataset lama
+biscuit sun,Susu formula / MPASI pabrikan
+biscuit susana,Biskuit / snack bermerek
+biscuit tini wini biti,Biskuit / snack bermerek
+brondong,Kacang / biji / umbi mentah
+wafer coklat kero-kero rp.50 (terigu. g,Biskuit / snack bermerek
+wafer,Biskuit / snack bermerek
+vetsin,Bumbu / rempah / penyedap
+wafer coklat pyramid,Biskuit / snack bermerek
+buah pala,Bumbu / rempah / penyedap
+vanilli,Bumbu / rempah / penyedap
+wafer interbis,Biskuit / snack bermerek
+bumbu sari mie indomie dll,Bumbu / rempah / penyedap
+cake wanderpan,Bahan / topping / bukan hidangan utuh
+camel roll stick,Biskuit / snack bermerek
+candy mentos mint,Gula / pemanis
+cantel,Kacang / biji / umbi mentah
+cheetos,Biskuit / snack bermerek
+chiki,Biskuit / snack bermerek
+chiki balls/ boom snack/ guntar snack,Biskuit / snack bermerek
+choki choki,Biskuit / snack bermerek
+choklat,Bahan / topping / bukan hidangan utuh
+cincau,Minuman
+cingloy,Nama bukan nama menu
+coconut milk with kluwih muda belu,Nama bukan nama menu
+coklat,Bahan / topping / bukan hidangan utuh
+coklat beng beng,Bahan / topping / bukan hidangan utuh
+coklat cha-cha,Bahan / topping / bukan hidangan utuh
+daging babi goreng,Non-halal / satwa liar
+daging telur,Daging / ikan mentah (bukan hidangan)
+donat,nama ganda di dalam sumber
+emping melinjo mentah,Tepung / bahan mentah
+empon,Nama bukan nama menu
+es cuwing,Minuman
+es dawet/cendol,Minuman
+es krim solo,Minuman
+es krim walls,Minuman
+es miami,Minuman
+es nong nong,Minuman
+fruittella,Gula / pemanis
+fuji mie/mi instan/tiga putra,Nama bukan nama menu
+fujimie (terigu. tapioka. garam. gula.,Nama bukan nama menu
+garam,Bumbu / rempah / penyedap
+garam kasar,Bumbu / rempah / penyedap
+getuk tiwul,massa makro > 100 g per 100 g
+gulai daging kambing belu,Gula / pemanis
+gulasakarin,Gula / pemanis
+hallo boy (terigu. tapioka. udang wijen,Nama bukan nama menu
+halus manis,Nama bukan nama menu
+hati ayam rebus belu,Jeroan / darah
+hunkwe,Kacang / biji / umbi mentah
+jagung rebus campur kagang hijau belu,Nama bukan nama menu
+jahe,Bumbu / rempah / penyedap
+jamu beras kencur,Obat / jamu
+jamu lempuyang,Obat / jamu
+jangung bose campur kacang hijau belu,Nama bukan nama menu
+jelly,Bahan / topping / bukan hidangan utuh
+jeruk,nama sudah ada di dataset lama
+kacang atom,nama sudah ada di dataset lama
+kacang dadap,Kacang / biji / umbi mentah
+kacang garing rege,Kacang / biji / umbi mentah
+kacang shanghai,Kacang / biji / umbi mentah
+kacang sukro,nama sudah ada di dataset lama
+kacang telur,nama sudah ada di dataset lama
+karoket,nama sudah ada di dataset lama
+kayu manis,Bumbu / rempah / penyedap
+kecap,Bumbu / rempah / penyedap
+kecap asin,Bumbu / rempah / penyedap
+keluwek,energi menyimpang > 25% dari hitungan makro
+kenji,Nama bukan nama menu
+keong mas,Non-halal / satwa liar
+kerupuk aci,nama sudah ada di dataset lama
+kerupuk ikan berpati,nama sudah ada di dataset lama
+kerupuk terigu mentah,Tepung / bahan mentah
+kerupuk udang,massa makro > 100 g per 100 g
+kerupuk udang berpati,nama sudah ada di dataset lama
+kerupuk upik singkong mentah,Tepung / bahan mentah
+ketumbar halus,Bumbu / rempah / penyedap
+ketumbar kasar,Bumbu / rempah / penyedap
+kolang-kaling,Minuman
+kopi made up (belu),Minuman
+kopi susu (jagung. tepung beras. tapio,Minuman
+kopi-kopi (jagung. tepung beras. tapiok,Minuman
+koya,Nama bukan nama menu
+krecek singkong mentah,Tepung / bahan mentah
+krupuk aladin,Biskuit / snack bermerek
+krupuk bala bala,nama ganda di dalam sumber
+krupuk fuji (chips-chips),Biskuit / snack bermerek
+krupuk jantan (tapioka. udang.wijen. b,Nama bukan nama menu
+krupuk jazzy rp. 100 (ubi. bawang puti,Biskuit / snack bermerek
+krupuk monas,Biskuit / snack bermerek
+krupuk tempe besar rp. 500,Nama bukan nama menu
+krupuk yeye,Biskuit / snack bermerek
+kue bolu rp. 100,Nama bukan nama menu
+kue donat rp. 100,Nama bukan nama menu
+kue jalankote (isinya saja),Nama bukan nama menu
+kue pisang molen rp. 100,Nama bukan nama menu
+kue roko'-roko' unti rp. 50 (nagasari),Nama bukan nama menu
+kue telur gabus/kue kontol bebek,Nama bukan nama menu
+kulit,Nama bukan nama menu
+kunci,Bumbu / rempah / penyedap
+kunyit,Bumbu / rempah / penyedap
+laos,Bumbu / rempah / penyedap
+lemper,nama sudah ada di dataset lama
+lengkuas,Bumbu / rempah / penyedap
+loder,Nama bukan nama menu
+martab ak kac abd meises?,Nama bukan nama menu
+martabak kacabd meises,Nama bukan nama menu
+merica,Bumbu / rempah / penyedap
+merica halus,Bumbu / rempah / penyedap
+milna,Susu formula / MPASI pabrikan
+oncom goreng,nama sudah ada di dataset lama
+ongol-ongol,nama sudah ada di dataset lama
+opak,Bahan / topping / bukan hidangan utuh
+orog orog,Nama bukan nama menu
+oseng oseng kool belu,Nama bukan nama menu
+ovaltine (tepung),Biskuit / snack bermerek
+pandan,Bumbu / rempah / penyedap
+papais,nama sudah ada di dataset lama
+pastel,nama sudah ada di dataset lama
+pergedel kentang belu,Nama bukan nama menu
+pisang goreng,Buah segar
+pisang molen,Buah segar
+promina,Susu formula / MPASI pabrikan
+rengginang ketan putih mentah,Tepung / bahan mentah
+rengginang singkong mentah,Tepung / bahan mentah
+risoles,nama sudah ada di dataset lama
+salam,Bumbu / rempah / penyedap
+sambal,energi menyimpang > 25% dari hitungan makro
+sereh,Bumbu / rempah / penyedap
+siomay,nama sudah ada di dataset lama
+sirup ad plex,Obat / jamu
+sirup batuk,Obat / jamu
+sirup papasetamol,Obat / jamu
+snack anak mas,Biskuit / snack bermerek
+snack boiki,Biskuit / snack bermerek
+snack idola,Biskuit / snack bermerek
+snack primarasa,Biskuit / snack bermerek
+snack rasa kelapa muda,Biskuit / snack bermerek
+snack super lipo (tapioka. gula. garam.,Biskuit / snack bermerek
+snack taro,Biskuit / snack bermerek
+snack taro/kenji snack top ten sn,Biskuit / snack bermerek
+snack tic tic makanan ringan/dora emon,Biskuit / snack bermerek
+snack tuyul & mbak yul (jagung. garam.,Biskuit / snack bermerek
+sun,Susu formula / MPASI pabrikan
+air ikan cakalang,Minuman
+air ikan layang,Minuman
+air sayur,Minuman
+air sayur + isi,Minuman
+air sayur nangka,Minuman
+air sayur sukun,Minuman
+air tajin purworejo,Minuman
+bubur campur belu,Nama bukan nama menu
+bubur halus campur susu belu,Nama bukan nama menu
+bubur havermuth,Bubur / puree bayi
+bubur kacang hijau belu,Nama bukan nama menu
+bubur kacang ijo nestle,Susu formula / MPASI pabrikan
+bubur lunac belu,Nama bukan nama menu
+bubur nasi (belu),Nama bukan nama menu
+bubur nasi campur sawi belu,Nama bukan nama menu
+bubur nasi campur supermie belu,Nama bukan nama menu
+bubur nasi campur tomat belu,Nama bukan nama menu
+bubur nasi kac. hij. (belu),Nama bukan nama menu
+bubur nasi kecap,Bumbu / rempah / penyedap
+bubur nestle belu made up,Susu formula / MPASI pabrikan
+bubur nestle dry,Susu formula / MPASI pabrikan
+bubur nutricia sayur daging,Bubur / puree bayi
+bubur sari buah nestle,Susu formula / MPASI pabrikan
+bubur saring belu,Nama bukan nama menu
+bubur serelac made up belu,Bubur / puree bayi
+bubur sum sum belu,Nama bukan nama menu
+bubur sun beras merah,Susu formula / MPASI pabrikan
+bubur sun beras merah belu made up,Susu formula / MPASI pabrikan
+bubur sun kacang hijau belu made up,Susu formula / MPASI pabrikan
+bubur sun pisang belu made up,Susu formula / MPASI pabrikan
+bubur tepung,Bubur / puree bayi
+bubur tepung beras dry rice flour,Bubur / puree bayi
+bubur tepung beras merah,Bubur / puree bayi
+bubur tepung beras -oko belu,Bubur / puree bayi
+bubur tepung jangung belu,Bubur / puree bayi
+bubur tim belu,Nama bukan nama menu
+cangkring tetelan,Daging / ikan mentah (bukan hidangan)
+cerelac/ ceresoy,Susu formula / MPASI pabrikan
+kuah asam ikan tembang belu,Kuah saja / bukan hidangan utuh
+kuah sayur kool belu,Kuah saja / bukan hidangan utuh
+saos tomat,Bumbu / rempah / penyedap
+sup ayam belu,Nama bukan nama menu
+sup daging  belu,Nama bukan nama menu
+sup kacang hijau  belu,Nama bukan nama menu
+sup kacang merah  belu,Nama bukan nama menu
+susu bebelac,Susu formula / MPASI pabrikan
+susu bendera 123,Susu formula / MPASI pabrikan
+susu chilmil,Susu formula / MPASI pabrikan
+susu dancow,Susu formula / MPASI pabrikan
+susu dancow balita,Susu formula / MPASI pabrikan
+susu dancow coklat,Susu formula / MPASI pabrikan
+susu dancow instant,Susu formula / MPASI pabrikan
+susu dancow made up(belu),Susu formula / MPASI pabrikan
+susu enfamil,Susu formula / MPASI pabrikan
+susu envapro,Susu formula / MPASI pabrikan
+susu kental manis made up belu,Minuman
+susu lactogen,Susu formula / MPASI pabrikan
+susu lactogen 1,Susu formula / MPASI pabrikan
+susu lactogen 2,Susu formula / MPASI pabrikan
+susu lactogen made up (belu),Susu formula / MPASI pabrikan
+susu llm,Susu formula / MPASI pabrikan
+susu morinaga,Susu formula / MPASI pabrikan
+susu nutrilon,Susu formula / MPASI pabrikan
+susu nutrima,Susu formula / MPASI pabrikan
+susu promil,Susu formula / MPASI pabrikan
+susu s26,Susu formula / MPASI pabrikan
+susu sgm 1,Susu formula / MPASI pabrikan
+susu sgm 2,Susu formula / MPASI pabrikan
+susu sgm dry powder,Susu formula / MPASI pabrikan
+susu sustagen,Susu formula / MPASI pabrikan
+susu sustagen yunior,Susu formula / MPASI pabrikan
+susu vitalac 1,Susu formula / MPASI pabrikan
+susu vitalac 2,Susu formula / MPASI pabrikan
+Puree wortel,Susu formula / MPASI pabrikan
+Puree kentang,Susu formula / MPASI pabrikan
+Puree labu kuning,Susu formula / MPASI pabrikan
+Puree ubi jalar,Susu formula / MPASI pabrikan
+Puree alpukat,Susu formula / MPASI pabrikan
+Puree pisang,Susu formula / MPASI pabrikan
+Bubur kacang hijau,energi menyimpang > 25% dari hitungan makro
+Bubur beras merah,energi menyimpang > 25% dari hitungan makro
+Puree brokoli,Susu formula / MPASI pabrikan
+Bubur oatmeal,energi menyimpang > 25% dari hitungan makro
+Bubur kacang merah,energi menyimpang > 25% dari hitungan makro
+Bubur ayam dan labu,energi menyimpang > 25% dari hitungan makro
+Nasi tim ayam,energi menyimpang > 25% dari hitungan makro
+Nasi tim daging sapi,energi menyimpang > 25% dari hitungan makro
+Nasi tim ikan,energi menyimpang > 25% dari hitungan makro
+Sup sayuran,energi menyimpang > 25% dari hitungan makro
+Bola-bola nasi dengan sayuran,energi menyimpang > 25% dari hitungan makro
+Omelet sayur,energi menyimpang > 25% dari hitungan makro
+Sup ayam dan kentang,energi menyimpang > 25% dari hitungan makro
+Bubur sereal,energi menyimpang > 25% dari hitungan makro
