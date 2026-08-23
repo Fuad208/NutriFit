@@ -1,4 +1,4 @@
-"""Panel admin: kelola user, dataset makanan/latihan, performa model."""
+"""Panel admin: kelola user, dataset makanan/latihan, dan tinjau hasil klaster."""
 
 from __future__ import annotations
 
@@ -6,9 +6,8 @@ import pandas as pd
 import streamlit as st
 
 from src.database import CALORIE_STORE, MEAL_STORE, SQLStore, WORKOUT_STORE, delete_record, delete_user_and_related_data, latest_user_record, load_records, load_users
-from src.recommender import clustering_performance_report
 
-from ..core.data import get_data
+from ..core.data import bersihkan_cache_dataset, tandai_dataset_berubah
 from ..core.state import current_role, migrate_users
 
 
@@ -21,13 +20,13 @@ def admin_view(members: pd.DataFrame, foods: pd.DataFrame, exercises: pd.DataFra
     st.markdown('<div class="brand">Admin Data</div>', unsafe_allow_html=True)
     st.caption("Tinjau data pengguna terdaftar, anggota gym, makanan, dan latihan.")
 
-    tab_users, tab_calorie, tab_meal, tab_workout, tab_performance, tab_members, tab_food, tab_exercise = st.tabs(
+    tab_users, tab_calorie, tab_meal, tab_workout, tab_klaster, tab_members, tab_food, tab_exercise = st.tabs(
         [
             "Pengguna Terdaftar",
             "Data Kalori",
             "Data Menu",
             "Data Latihan",
-            "Performa Model",
+            "Hasil Klaster",
             "Anggota Gym",
             "Dataset Makanan",
             "Dataset Latihan",
@@ -41,8 +40,8 @@ def admin_view(members: pd.DataFrame, foods: pd.DataFrame, exercises: pd.DataFra
         admin_records_tab(MEAL_STORE, "Rekomendasi menu")
     with tab_workout:
         admin_records_tab(WORKOUT_STORE, "Rekomendasi latihan")
-    with tab_performance:
-        admin_model_performance_tab(members, foods, exercises)
+    with tab_klaster:
+        admin_cluster_tab(members, foods, exercises)
     with tab_members:
         st.dataframe(members, use_container_width=True, height=420)
     with tab_food:
@@ -175,33 +174,62 @@ def konfirmasi_hapus_record(store: str, label: str, keterangan: str, record_id) 
         st.rerun()
 
 
-def admin_model_performance_tab(members: pd.DataFrame, foods: pd.DataFrame, exercises: pd.DataFrame) -> None:
-    """Tab performa: metrik ketiga algoritma klasterisasi atas dataset yang sedang aktif."""
-    st.caption("Evaluasi clustering berdasarkan dataset yang sedang aktif di sistem.")
-    if st.button("Refresh Performa Model", use_container_width=True):
-        get_data.clear()
+def admin_cluster_tab(members: pd.DataFrame, foods: pd.DataFrame, exercises: pd.DataFrame) -> None:
+    """Tab klasterisasi: hasil pengelompokan ketiga algoritma beserta isi tiap klaster.
+
+    Menampilkan HASIL, bukan menilai mutunya; metrik evaluasi tempatnya di notebook
+    pengujian karena perhitungannya mahal dan tidak dipakai mengambil keputusan apa
+    pun di halaman ini.
+    """
+    st.caption("Hasil pengelompokan data yang sedang aktif di sistem.")
+    if st.button("Refresh Data Klaster", use_container_width=True):
+        # Cukup proses ini saja. Tombolnya untuk meninjau ulang hasil klaster,
+        # bukan menandai ada perubahan data, jadi aplikasi pengguna tidak perlu
+        # ikut membayar pemuatan ulang yang memakan puluhan detik.
+        bersihkan_cache_dataset()
         st.rerun()
 
-    report = clustering_performance_report(members, foods, exercises)
-    for title, payload in report.items():
-        st.markdown(f"### {title}")
-        cols = st.columns(5)
-        cols[0].metric("Algoritma", payload["algorithm"])
-        cols[1].metric("Tipe Data", payload["data_type"])
-        cols[2].metric("Jumlah Data", f"{payload['rows']:,}")
-        cols[3].metric("Jumlah Klaster", payload["n_clusters"])
-        skor = payload["score"]
-        cols[4].metric(payload["score_label"],
-                       "-" if skor is None else f"{skor:,.3f}")
+    for judul, tipe, data, kolom_klaster, kolom_tampil in [
+        ("K-Prototypes — Profil Anggota", "Campuran numerik + kategorikal",
+         members, "User_Cluster",
+         ["Age", "Gender", "Weight (kg)", "Height (m)", "BMI",
+          "Activity_Level", "Experience_Label", "Fitness_Goal"]),
+        ("K-Means — Menu Makanan", "Numerik",
+         foods, "Food_Cluster",
+         ["name", "calories", "proteins", "fat", "carbohydrate"]),
+        ("K-Modes — Program Latihan", "Kategorikal",
+         exercises, "Exercise_Cluster",
+         ["Title", "Type", "BodyPart", "Equipment", "Level"]),
+    ]:
+        st.markdown(f"### {judul}")
+        if kolom_klaster not in data.columns:
+            st.info("Kolom klaster belum tersedia pada dataset ini.")
+            st.divider()
+            continue
 
-        metric_cols = st.columns([0.35, 0.65])
-        with metric_cols[0]:
-            st.metric(payload["cost_label"], f"{payload['cost']:,.3f}")
-            # Sebagian algoritma dinilai lebih dari satu metrik -- K-Means
-            # memakai Calinski-Harabasz dan Silhouette sekaligus.
-            for nama, nilai in (payload.get("extra_scores") or {}).items():
-                st.metric(nama, "-" if nilai is None else f"{nilai:,.3f}")
-        metric_cols[1].dataframe(payload["counts"], use_container_width=True, hide_index=True)
+        label = data[kolom_klaster]
+        cols = st.columns(3)
+        cols[0].metric("Tipe Data", tipe)
+        cols[1].metric("Jumlah Data", f"{len(data):,}")
+        cols[2].metric("Jumlah Klaster", f"{label.nunique():,}")
+
+        sebaran = (
+            label.value_counts().sort_index()
+            .rename_axis("Klaster").reset_index(name="Jumlah Data")
+        )
+        sebaran["Porsi"] = (sebaran["Jumlah Data"] / len(data) * 100).round(1).astype(str) + "%"
+        st.dataframe(sebaran, use_container_width=True, hide_index=True)
+
+        pilihan = sorted(label.dropna().unique().tolist())
+        terpilih = st.selectbox(
+            "Lihat isi klaster", pilihan, key=f"isi_klaster_{kolom_klaster}",
+            format_func=lambda nilai: f"Klaster {nilai}",
+        )
+        tersedia = [k for k in kolom_tampil if k in data.columns]
+        st.dataframe(
+            data[label == terpilih][tersedia],
+            use_container_width=True, height=280,
+        )
         st.divider()
 
 
@@ -404,8 +432,12 @@ def delete_dataset_record(table: str, primary_key: str, record_id: int) -> None:
 
 
 def refresh_datasets_after_admin_change(message: str) -> None:
-    """Kosongkan cache dataset dan rekomendasi di sesi setelah data diubah, lalu tampilkan pesan sukses."""
-    get_data.clear()
+    """Tandai dataset berubah dan kosongkan rekomendasi di sesi, lalu tampilkan pesan sukses.
+
+    Penandanya dinaikkan, bukan cache-nya yang dikosongkan, karena panel admin dan
+    aplikasi pengguna adalah dua proses terpisah.
+    """
+    tandai_dataset_berubah()
     st.session_state.food_recommendations = None
     st.session_state.exercise_recommendations = None
     st.session_state.workout_filters = None
@@ -445,22 +477,7 @@ def summarize_record(record: dict) -> dict:
 
 
 def _nilai_tabel(value):
-    """Ratakan nilai bersarang menjadi satu sel tabel yang bisa dibaca.
-
-    `preference` berisi DAFTAR label kategori sejak filter preferensi diubah
-    dari kata kunci bebas menjadi pilihan kategori. pyarrow -- yang dipakai
-    st.dataframe untuk menserialisasi tabel -- tidak bisa menaruh list di dalam
-    satu kolom, sehingga seluruh tabel gagal dikonversi:
-
-        ArrowTypeError: Expected bytes, got a 'list' object
-        Conversion failed for column preference with type object
-
-    Streamlit memang memulihkan diri dengan memaksa kolomnya jadi teks, tetapi
-    sebelum itu ia membuang traceback panjang ke konsol tiap kali tab dibuka.
-    Diratakan di sini supaya tabelnya benar sejak awal, bukan hasil pemulihan
-    darurat. Ditulis umum, bukan khusus `preference`, karena kolom lain (mis.
-    isi `filters`) bisa ikut berisi list di kemudian hari.
-    """
+    """Ubah satu nilai record menjadi bentuk yang aman ditampilkan di tabel ringkasan."""
     if isinstance(value, (list, tuple, set)):
         return ", ".join(str(item) for item in value) if value else ""
     if isinstance(value, dict):

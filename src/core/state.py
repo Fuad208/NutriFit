@@ -136,7 +136,7 @@ def start_password_reset(email: str, base_url: str | None = None) -> tuple[bool,
     st.session_state.users = migrate_users(load_users())
     generic_message = "Kalau email tersebut terdaftar, tautan reset password sudah dikirim. Silakan cek inbox Anda."
     user = st.session_state.users.get(email)
-    # Akun lama berprovider "google" SENGAJA tetap boleh reset. Dulu mereka
+    # Akun lama berprovider "google" tetap boleh mengatur ulang kata sandi:
     # dikecualikan karena punya jalur login sendiri; setelah login Google
     # dihapus, reset password adalah satu-satunya cara mereka masuk lagi --
     # mengecualikannya di sini akan mengunci mereka keluar selamanya.
@@ -183,33 +183,16 @@ def _parse_token_expiry(value) -> datetime | None:
 
 
 def landing_page_for_user() -> str:
-    """Halaman pertama setelah login.
-
-    User yang belum pernah menghitung kalori tidak punya target nutrisi, jadi
-    dashboard-nya kosong dan membingungkan. Mereka langsung diarahkan ke
-    kalkulator; yang sudah punya data tetap mendarat di Home seperti biasa.
-    Dipanggil SETELAH restore_user_context supaya session_state.nutrition
-    sudah terisi dari record terakhir user.
-    """
+    """Halaman yang dibuka setelah pengguna berhasil masuk."""
     return "Home" if st.session_state.get("nutrition") else "Calorie Calculator"
 
 
 # --------------------------------------------------------------------------- #
 # Kata sandi
 # --------------------------------------------------------------------------- #
-# Argon2id, pemenang Password Hashing Competition dan rekomendasi OWASP untuk
-# penyimpanan kata sandi baru. Tiga sifat yang tidak dimiliki skema lama:
-#
-# 1. BER-SALT dan salt-nya acak per akun, jadi dua orang dengan kata sandi sama
-#    menghasilkan hash berbeda dan tabel pelangi tidak berguna.
-# 2. MAHAL SECARA MEMORI (19 MiB per percobaan), sehingga penebakan massal di
-#    GPU/ASIC jauh lebih lambat -- inilah kelemahan utama SHA-256, yang justru
-#    dirancang supaya CEPAT dan bisa diuji miliaran kali per detik.
-# 3. Parameternya menempel di dalam string hash, jadi biaya kerja bisa
-#    dinaikkan kelak tanpa mengunci pengguna lama (lihat password_needs_upgrade).
-#
-# Parameter mengikuti profil "second recommended" OWASP: 19 MiB memori,
-# 2 iterasi, paralelisme 1.
+# Hash memakai Argon2id dengan garam acak. Akun lama ber-hash SHA-256 masih bisa
+# masuk lalu otomatis dimigrasi pada saat login, karena hanya di titik itulah
+# aplikasi memegang kata sandi aslinya. Lihat docs/catatan-desain.md bagian 18.
 _PASSWORD_HASHER = PasswordHasher(
     time_cost=2,
     memory_cost=19 * 1024,
@@ -247,14 +230,9 @@ def stored_password_hash(user: dict) -> str | None:
 
 
 def verify_password(user: dict, password: str) -> bool:
-    """Cocokkan kata sandi dengan hash tersimpan, Argon2id maupun SHA-256 lama.
+    """True bila kata sandi cocok dengan hash yang tersimpan.
 
-    Perbandingan kata sandi POLOS yang dulu ada di sini sudah dibuang. Cabang
-    itu membuat akun yang kata sandinya tersimpan apa adanya tetap bisa login,
-    sehingga bocornya isi tabel `users` langsung berarti bocornya kata sandi --
-    dan cabang itu juga akan menerima kata sandi polos untuk akun mana pun yang
-    kolomnya belum sempat di-hash. Akun seperti itu (kalau ada) sekarang harus
-    lewat "Lupa kata sandi?".
+    Menerima hash Argon2id maupun SHA-256 warisan; kata sandi polos ditolak.
     """
     stored = stored_password_hash(user)
     if not stored or not password:
@@ -288,14 +266,7 @@ def password_needs_upgrade(user: dict) -> bool:
 
 
 def upgrade_password_hash(email: str, password: str) -> None:
-    """Tulis ulang hash lama menjadi Argon2id setelah login berhasil.
-
-    Migrasi hanya bisa dilakukan di sini: hash SHA-256 tidak bisa diubah menjadi
-    Argon2id tanpa kata sandi aslinya, dan satu-satunya saat aplikasi memegang
-    kata sandi asli adalah tepat setelah login yang benar. Akun yang tidak
-    pernah login lagi tetap memakai hash lama sampai pemiliknya masuk atau
-    melakukan reset kata sandi.
-    """
+    """Ganti hash lama pengguna dengan Argon2id, lalu buang kolom hash warisannya."""
     users = migrate_users(load_users())
     user = users.get(email)
     if not user:
@@ -379,13 +350,10 @@ def same_profile_today(profile: dict, user_id, *, today: date | None = None) -> 
 
 
 def persist_user_profile(profile: dict, nutrition: NutritionResult) -> bool:
-    """Simpan profil nutrisi. Mengembalikan True kalau record baru ditulis.
+    """Simpan profil dan hasil gizi pengguna, lalu catat ke riwayat kalori.
 
-    Perhitungan ulang dengan data yang PERSIS sama di hari yang sama tidak
-    menghasilkan record baru. Sebelumnya setiap penekanan tombol menambah satu
-    baris, sehingga riwayat kalori terisi entri kembar yang tidak membawa
-    informasi apa pun -- dan grafik tren harian ikut terganggu karenanya.
-    Profil pada akun tetap diperbarui, hanya riwayatnya yang tidak digandakan.
+    Balas False bila perhitungan dengan data yang sama persis sudah tercatat hari itu,
+    sehingga riwayat tidak menumpuk entri kembar.
     """
     email = st.session_state.current_user
     if not email:
@@ -473,16 +441,7 @@ def calculate_age_from_birth_date(birth_date: date, today: date | None = None, *
 
 
 def ensure_nutrition_ready() -> bool:
-    """Gerbang akses halaman Rekomendasi Menu & Rekomendasi Latihan.
-
-    Dua syarat, keduanya sengaja dipisah supaya pesannya beda:
-
-    1. Target nutrisi harus ada sama sekali (user baru).
-    2. Hitung kalori harus dilakukan HARI INI. Ini yang membuat kunci pada
-       kartu Langkah 2 & 3 di dashboard benar-benar berlaku -- tanpa cek ini,
-       kartunya terkunci tapi halamannya masih bisa dibuka lewat sidebar,
-       dan rekomendasi hari ini akan memakai berat/target kemarin.
-    """
+    """True bila data gizi pengguna sudah tersedia; bila belum, tampilkan pengarah ke Hitung Kalori."""
     if st.session_state.nutrition is None:
         st.info("Silakan hitung target nutrisi Anda terlebih dahulu.")
         if st.button("Buka Kalkulator Kalori"):

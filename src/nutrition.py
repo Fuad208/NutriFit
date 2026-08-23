@@ -105,3 +105,84 @@ def calculate_nutrition_targets(
         protein_g=round(protein_g),
         fat_g=round(fat_g),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Pagar tujuan kebugaran
+# --------------------------------------------------------------------------- #
+# Rentang BMI yang masih tergolong "Normal" menurut classify_bmi(). Dipakai untuk
+# menerjemahkan kalimat "sampai batas normal" jadi angka berat badan yang bisa
+# ditunjukkan ke pengguna, bukan sekadar anjuran tanpa ukuran.
+NORMAL_BMI_RANGE = (18.5, 23.0)
+
+# Perlakuan tiap tujuan kebugaran pada tiap kategori IMT. Tingkatnya, dari longgar
+# ke ketat: saran, boleh, syarat, warning, error, tetap, blokir.
+# Ambangnya mengikuti classify_bmi() supaya layar dan aturan tidak berbeda
+# pendapat. Alasan tiap penetapan: docs/catatan-desain.md bagian 13.
+GOAL_GUARDRAILS = {
+    "Kurus":       {"Lose Weight": "error",  "Maintain Weight": "boleh",   "Gain Weight": "saran"},
+    "Normal":      {"Lose Weight": "syarat", "Maintain Weight": "saran",   "Gain Weight": "syarat"},
+    "Gemuk":       {"Lose Weight": "saran",  "Maintain Weight": "warning", "Gain Weight": "error"},
+    "Obesitas I":  {"Lose Weight": "tetap",  "Maintain Weight": "blokir",  "Gain Weight": "blokir"},
+    "Obesitas II": {"Lose Weight": "tetap",  "Maintain Weight": "blokir",  "Gain Weight": "blokir"},
+}
+
+GOAL_ORDER = ("Lose Weight", "Maintain Weight", "Gain Weight")
+
+
+@dataclass(frozen=True)
+class GoalGuardrail:
+    """Tujuan mana yang boleh dipilih seseorang, beserta alasan dan batas beratnya."""
+
+    bmi: float
+    bmi_status: str
+    weight_min: float
+    weight_max: float
+    allowed: tuple[str, ...]
+    fixed: str | None
+    default: str
+    levels: dict
+
+    def level(self, fitness_goal: str) -> str:
+        """Tingkat perlakuan satu tujuan: saran / boleh / syarat / warning / error / tetap / blokir."""
+        return self.levels.get(fitness_goal, "blokir")
+
+    def is_blocked(self, fitness_goal: str) -> bool:
+        """True bila tujuan ini tidak boleh dipakai sama sekali pada kondisi BMI tersebut."""
+        return self.level(fitness_goal) == "blokir"
+
+    def needs_confirmation(self, fitness_goal: str) -> bool:
+        """True bila tujuan ini hanya boleh dipakai setelah pengguna menyatakan mengerti risikonya."""
+        return self.level(fitness_goal) == "error"
+
+
+def goal_guardrail(weight_kg: float, height_cm: float) -> GoalGuardrail:
+    """Tentukan tujuan yang boleh dipilih dari berat dan tinggi badan.
+
+    Dipanggil SEBELUM pilihan tujuan dirender, bukan sesudahnya. Itulah sebabnya
+    berat dan tinggi tidak lagi berada di dalam st.form di halaman kalori:
+    Streamlit menahan nilai widget di dalam form sampai tombol kirim ditekan,
+    sehingga BMI mustahil diketahui saat pilihan tujuan disusun -- dan pengguna
+    obesitas bisa memilih "menaikkan berat" tanpa satu pun peringatan.
+    """
+    bmi = calculate_bmi(weight_kg, height_cm)
+    status = classify_bmi(bmi)
+    rules = GOAL_GUARDRAILS[status]
+
+    height_m = height_cm / 100
+    low, high = NORMAL_BMI_RANGE
+
+    allowed = tuple(goal for goal in GOAL_ORDER if rules[goal] != "blokir")
+    fixed = next((goal for goal in GOAL_ORDER if rules[goal] == "tetap"), None)
+    default = fixed or next(goal for goal in GOAL_ORDER if rules[goal] == "saran")
+
+    return GoalGuardrail(
+        bmi=round(bmi, 1),
+        bmi_status=status,
+        weight_min=round(low * height_m**2, 1),
+        weight_max=round(high * height_m**2, 1),
+        allowed=allowed,
+        fixed=fixed,
+        default=default,
+        levels=dict(rules),
+    )

@@ -1,16 +1,4 @@
-"""Terjemahan istilah latihan (Inggris -> Indonesia).
-
-Dataset latihan (tabel `exercises`) dan dataset tutorial
-(`dataProgramTraining/data/exercises.json`) sama-sama menyimpan istilahnya
-dalam bahasa Inggris. Nilainya berupa kosakata tertutup -- 16 bagian tubuh,
-28 jenis alat, 19 otot target, 40 otot sekunder, 3 level, 7 jenis latihan --
-jadi bisa dipetakan satu per satu di sini, bukan diterjemahkan saat runtime.
-
-Kunci disimpan huruf kecil semua karena kedua dataset memakai kapitalisasi
-berbeda untuk istilah yang sama (mis. "Lats" vs "lats"). Istilah yang belum
-terdaftar dikembalikan apa adanya (dengan Title Case) supaya tidak ada teks
-yang hilang kalau nanti datanya bertambah.
-"""
+"""Pemetaan istilah sistem ke label berbahasa Indonesia yang tampil di layar."""
 
 from __future__ import annotations
 
@@ -133,6 +121,19 @@ ISTILAH_LATIHAN: dict[str, str] = {
 # Nilai "Any" dipakai sebagai opsi filter, bukan istilah dari dataset.
 SEMUA = "Semua"
 
+# Tujuan kebugaran dipakai di beberapa halaman, jadi terjemahannya ditaruh di
+# sini alih-alih diulang sebagai dict lokal di tiap view.
+TUJUAN_KEBUGARAN = {
+    "Lose Weight": "Menurunkan Berat",
+    "Maintain Weight": "Menjaga Berat",
+    "Gain Weight": "Menaikkan Berat",
+}
+
+
+def id_tujuan(value) -> str:
+    """Terjemahkan tujuan kebugaran ke bahasa Indonesia."""
+    return TUJUAN_KEBUGARAN.get(str(value or "").strip(), str(value or "-"))
+
 
 def id_istilah(value) -> str:
     """Terjemahkan satu istilah latihan ke bahasa Indonesia.
@@ -158,7 +159,7 @@ def id_daftar(values) -> str:
 
 
 # Nama slot makan disimpan dalam bahasa Inggris di record rekomendasi menu
-# (lihat MEAL_TEMPLATE di recommender.py). Petanya ditaruh di sini, bukan di
+# (lihat MEAL_TEMPLATES di recommender.py). Petanya ditaruh di sini, bukan di
 # views/meal.py, karena dashboard juga memakainya untuk feed aktivitas --
 # dan views/meal.py mengimpor views/home.py, jadi arah impor sebaliknya akan
 # melingkar.

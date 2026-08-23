@@ -1,19 +1,4 @@
-"""Penghapusan riwayat kalori harus dikonfirmasi lebih dulu.
-
-LATAR MASALAHNYA. Tombol "Hapus" pada Riwayat Perhitungan Kalori langsung
-memanggil `delete_record` begitu ditekan. Satu klik salah sasaran -- dan
-kolomnya sempit, bersebelahan dengan baris lain -- langsung menghapus catatan
-secara permanen tanpa cara membatalkan.
-
-Yang membuatnya lebih berbahaya: menghapus catatan TERBARU tidak sekadar
-membuang satu baris riwayat. `sync_current_nutrition_from_records` akan
-menggantinya dengan catatan sebelumnya, atau MENGOSONGKAN target kalori dan
-makro harian kalau itu satu-satunya catatan yang tersisa -- sehingga
-rekomendasi menu maupun latihan ikut tidak bisa dibuat.
-
-Berkas ini menjalankan seluruh alurnya di schema Postgres terisolasi, jadi
-data asli pengguna tidak tersentuh.
-"""
+"""Uji konfirmasi penghapusan riwayat: data hanya terhapus setelah pengguna menegaskan."""
 import os
 import sys
 from pathlib import Path

@@ -1,20 +1,4 @@
-"""Pemutar animasi Lottie untuk Streamlit -- tanpa paket tambahan, tanpa CDN.
-
-Kenapa tidak memakai `streamlit-lottie`: paket itu menambah satu dependensi
-pihak ketiga yang rilis terakhirnya 2023 untuk pekerjaan yang sebenarnya hanya
-"muat satu berkas JS lalu panggil satu fungsi". Di sini mesin pemutarnya
-(lottie-web) disalin ke assets/vendor/ dan disisipkan langsung ke HTML
-komponen, jadi:
-
-- tidak ada paket yang bisa rusak saat versi Streamlit naik;
-- tidak ada permintaan ke CDN, sehingga halaman login tetap jalan offline dan
-  tampilannya tidak berubah diam-diam saat CDN memperbarui versinya.
-
-Batasan yang perlu diingat saat memakai modul ini: komponen HTML Streamlit
-selalu dirender di dalam <iframe>, dan tinggi iframe HARUS ditentukan dalam
-piksel -- tidak ada cara membuatnya "setinggi kolom sebelah". Karena itu
-`height` wajib dipikirkan pemanggilnya, bukan diserahkan ke tata letak.
-"""
+"""Pemuat animasi Lottie dari berkas aset lokal, dengan cache."""
 
 from __future__ import annotations
 
@@ -32,15 +16,7 @@ PEMUTAR_PATH = ASSETS_DIR / "vendor" / "lottie_light.min.js"
 
 @st.cache_data(show_spinner=False)
 def _baca_berkas(path_teks: str) -> str:
-    """Baca berkas aset; kembalikan "" kalau tidak ada.
-
-    Sengaja tidak melempar exception. Aset animasi adalah hiasan: halaman login
-    harus tetap bisa dipakai walaupun folder assets/ belum diunduh (misalnya
-    hasil clone yang belum menjalankan fetch_lottie_assets.py). Yang hilang
-    cuma animasinya, bukan tombol masuknya.
-
-    Parameternya `str`, bukan `Path`, supaya kunci cache-nya stabil.
-    """
+    """Baca satu berkas aset Lottie dari folder assets; balas None bila tidak ada."""
     try:
         return Path(path_teks).read_text(encoding="utf-8")
     except OSError:

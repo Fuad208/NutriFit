@@ -1,19 +1,4 @@
-"""Halaman dashboard/beranda.
-
-Isinya dua lapis:
-
-1. Navigasi langkah harian (Hitung Kalori -> Rekomendasi Menu -> Rekomendasi
-   Latihan). Langkah 2 & 3 terkunci sampai user menghitung kalori HARI ITU,
-   dan otomatis terkunci lagi begitu tanggal berganti. Logika statusnya ada di
-   core/progress.py -- di sini murni tampilannya.
-2. Ringkasan data: tren berat badan, aktivitas terakhir, target kalori & makro
-   hari ini, dan satu fakta kesehatan. Semua angkanya dibaca dari record yang
-   tersimpan (bukan contoh/dummy), jadi kosong berarti user memang belum punya
-   datanya.
-
-Seluruh record milik user dimuat SEKALI di home_view lalu dioper ke tiap kartu,
-supaya satu kali render tidak menembak database berkali-kali untuk data sama.
-"""
+"""Halaman Home: ringkasan tren berat badan, riwayat aktivitas, dan target kalori harian."""
 
 from __future__ import annotations
 
@@ -46,12 +31,8 @@ from ..core.progress import (
 from ..core.state import current_user
 
 
-# Warna mark grafik: satu hue merek (lolos cek kontras >= 3:1 dan chroma di atas
-# ambang pada latar putih). Track memakai langkah yang lebih muda dari hue yang
-# sama supaya sisa/terisi tetap terbaca sebagai satu skala, bukan dua warna beda.
-# Harus tetap sama dengan --green / --green-dark di core/styles.py. Duplikasi
-# ini tidak bisa dihindari: Altair menerima warna sebagai nilai Python, bukan
-# custom property CSS, jadi variabel tema tidak bisa dibaca dari sini.
+# Warna mark grafik: satu hue merek yang lolos cek kontras terhadap kedua latar,
+# terang maupun gelap.
 ACCENT = "#FF4646"
 ACCENT_DARK = "#D92A2A"
 TRACK = "#fde8e8"
@@ -339,14 +320,7 @@ def render_weight_trend_card(calorie_records: list[dict], nutrition: NutritionRe
 
 
 def render_activity_card(records: dict[str, list[dict]], summary: dict) -> None:
-    """Riwayat aktivitas yang bisa DIKLAIM, bukan sekadar dibaca.
-
-    Sebelumnya kartu ini hanya menampilkan daftar kejadian. Sekarang isinya
-    adalah daftar tugas hari ini: user mencentang menu yang benar-benar dimakan
-    dan latihan yang benar-benar dikerjakan, dan kartu Target Kalori Harian di
-    bawahnya langsung menyesuaikan diri. Riwayat hari-hari sebelumnya pindah ke
-    dialog "Lihat Semua" -- di sana sifatnya memang hanya bacaan.
-    """
+    """Kartu riwayat aktivitas: daftar menu dan latihan hari ini beserta status klaimnya."""
     has_plan = bool(summary["meals_total"] or summary["workouts_total"])
     with st.container(border=True, key="card_activity"):
         st.markdown(card_head_html("Riwayat Aktivitas", "history"), unsafe_allow_html=True)
@@ -394,20 +368,7 @@ def render_claim_list(
     limit: int | None = None,
     in_dialog: bool = False,
 ) -> None:
-    """Daftar centang menu & latihan hari ini.
-
-    `limit` adalah jatah baris untuk kartu dashboard yang sempit, dan sengaja
-    DIBAGI antara dua kelompok, bukan dipakai berurutan. Satu menu harian berisi
-    sembilan item, jadi pemotongan "lima teratas" akan selalu habis di menu dan
-    latihan tidak pernah kelihatan -- padahal keduanya sama-sama perlu diklaim.
-    Dialog memakai limit=None supaya semuanya bisa ditandai.
-
-    Key checkbox memuat `key_prefix` karena item yang sama bisa tampil di kartu
-    DAN di dialog sekaligus, dan Streamlit menolak dua widget dengan key identik.
-
-    `records` dioper dari home_view, tidak dimuat ulang di sini -- seluruh
-    halaman sengaja hanya membaca database satu kali per render.
-    """
+    """Render daftar menu dan latihan hari ini beserta centang penandaan selesai."""
     user = current_user() or {}
     meal_items = [
         (slot, item) for slot, items in summary["meal_plan"].items() for item in items
@@ -483,15 +444,7 @@ def _claim_preview_budget(limit: int | None, meals: int, workouts: int) -> tuple
 
 
 def _rerun(in_dialog: bool) -> None:
-    """Jalankan ulang bagian yang tepat setelah sebuah klaim tersimpan.
-
-    `st.rerun()` biasa menjalankan ulang SELURUH halaman, dan di dalam dialog
-    itu berarti dialognya tertutup. Gejalanya persis seperti yang dilaporkan:
-    mencentang satu item di "Lihat Semua" langsung melempar user keluar padahal
-    masih ada item lain yang mau ditandai. `scope="fragment"` hanya menjalankan
-    ulang isi dialognya, sehingga dialog tetap terbuka dan centangnya langsung
-    terbarui.
-    """
+    """Jalankan ulang halaman, dari dalam dialog maupun dari halaman biasa."""
     st.rerun(scope="fragment" if in_dialog else "app")
 
 
@@ -515,12 +468,8 @@ def invalidate_workout_session_state() -> None:
 @st.dialog("Riwayat Aktivitas", width="large")
 def show_activity_history(records: dict[str, list[dict]], summary: dict) -> None:
     """Dialog riwayat: tab klaim hari ini dan tab aktivitas lampau, datanya dimuat ulang tiap render."""
-    # Argumen dialog TIDAK dievaluasi ulang saat isinya dijalankan ulang: ia
-    # tetap memegang salinan dari saat tombol ditekan. Kalau dipakai apa adanya,
-    # klaim pertama tersimpan ke database tetapi daftar di layar masih membaca
-    # salinan lama -- centangnya balik lagi dan angkanya tidak bertambah, persis
-    # gejala "item yang saya klaim tidak terhitung". Karena itu datanya dimuat
-    # ulang di sini setiap kali dialog dirender.
+    # Argumen dialog tidak dievaluasi ulang saat isinya dijalankan, jadi nilai yang
+    # dipakai di dalamnya harus dioper saat pemanggilan.
     user = current_user() or {}
     records = load_user_records(user.get("user_id"))
     summary = claim_summary(records, current_weight_kg())

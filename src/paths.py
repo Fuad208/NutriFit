@@ -1,14 +1,7 @@
 """Lokasi folder proyek NutriFit.
 
-Semua path berkas (.env, data/, dataProgramTraining/, assets/) dihitung dari
-folder proyek ini, BUKAN dari folder tempat perintah dijalankan.
-
-Alasannya konkret: sebelumnya path-nya relatif ke cwd, jadi menjalankan
-`streamlit run NutriFit/app.py` dari folder induk membuat `.env` tidak
-ditemukan -- dan tanpa .env, kredensial Supabase ikut hilang sehingga aplikasi
-gagal menyambung ke database padahal seluruh datanya utuh.
-
-Dengan anchor ini aplikasi berperilaku sama dari folder mana pun dijalankan.
+Semua path dihitung dari folder proyek ini, bukan dari folder tempat perintah
+dijalankan, sehingga aplikasi berperilaku sama dari folder mana pun.
 """
 
 from __future__ import annotations

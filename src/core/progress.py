@@ -1,23 +1,4 @@
-"""Alur langkah harian: Hitung Kalori -> Rekomendasi Menu -> Rekomendasi Latihan.
-
-Aturannya: Langkah 2 dan 3 hanya terbuka kalau user sudah menghitung kalori
-PADA HARI YANG SAMA. Begitu tanggal berganti, ketiganya kembali ke kondisi awal
-(Langkah 1 terbuka, 2 & 3 terkunci).
-
-Status SENGAJA tidak disimpan sebagai kolom/flag sendiri, melainkan diturunkan
-dari `created_at` record yang memang sudah ditulis tiap fitur dipakai
-(calorie_records, meal_recommendations, workout_recommendations). Konsekuensinya:
-
-- reset harian terjadi dengan sendirinya, tanpa scheduler/cron dan tanpa perlu
-  user membuka aplikasi di tengah malam;
-- tidak ada state baru yang bisa "bohong" -- kalau kartu bilang selesai, berarti
-  record-nya memang ada di database;
-- tidak ada migrasi skema untuk fitur ini.
-
-Modul ini sengaja hanya bergantung pada src.database (bukan streamlit atau view),
-supaya bisa dipakai bareng oleh dashboard maupun gerbang akses di
-core/state.ensure_nutrition_ready tanpa impor melingkar.
-"""
+"""Pembacaan riwayat harian pengguna: catatan kalori, menu, dan latihan hari ini."""
 
 from __future__ import annotations
 

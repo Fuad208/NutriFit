@@ -1,28 +1,7 @@
-"""Penerjemah teks latihan Inggris -> Indonesia, berbasis kamus & aturan.
+"""Penerjemahan nama, deskripsi, dan atribut latihan dari Inggris ke Indonesia.
 
-Dataset latihan (`training_program`) dan dataset tutorial
-(`dataProgramTraining/data/exercises.json`) seluruhnya berbahasa Inggris: nama
-gerakan, deskripsi, dan langkah pelaksanaan. Dataset tutorial memang punya 10
-bahasa, tapi Indonesia bukan salah satunya -- jadi tidak ada terjemahan siap
-pakai yang bisa dibaca langsung.
-
-Yang menyelamatkan keadaan: kosakatanya nyaris tertutup. Seluruh langkah
-pelaksanaan hanya memakai ~900 kata unik, dan 400 kata teratas sudah menutup
-98,7% kemunculan. Kalimatnya pun formulaik ("Repeat for the desired number of
-repetitions." muncul 900 kali). Karena itu penerjemahan dilakukan OFFLINE dan
-DETERMINISTIK -- tanpa layanan terjemahan, tanpa panggilan jaringan, dan hasil
-yang sama persis di setiap mesin -- lewat tiga lapis pencocokan:
-
-1. `sentences`  - kalimat utuh yang sering muncul, diterjemahkan manual. Lapis
-                  paling akurat; dipakai lebih dulu.
-2. `phrases`    - idiom & kolokasi multi-kata ("shoulder-width apart" ->
-                  "selebar bahu"). Dicocokkan dari yang TERPANJANG supaya frasa
-                  panjang menang atas potongannya.
-3. `words`      - kata per kata untuk sisanya.
-
-Kamusnya ada di data/exercise_id_lexicon.json supaya bisa ditambah tanpa
-menyentuh kode. Kalau berkasnya hilang, modul ini mengembalikan teks aslinya
-apa adanya -- aplikasi tetap jalan, hanya tidak diterjemahkan.
+Diterjemahkan per potongan istilah, bukan per kalimat utuh, supaya gerakan yang
+belum pernah ditemui tetap terbaca sebagian.
 """
 
 from __future__ import annotations
@@ -152,30 +131,9 @@ def id_teks(text: str) -> str:
 
 
 def id_nama_latihan(title: str) -> str:
-    """Nama gerakan ditampilkan APA ADANYA, tidak diterjemahkan.
+    """Terjemahkan nama gerakan ke bahasa Indonesia, potongan demi potongan.
 
-    Ini keputusan sadar, bukan pekerjaan yang belum selesai. Dua alasannya:
-
-    1. Praktisi gym Indonesia memang memakai nama Inggrisnya ("bench press",
-       "lat pulldown", "deadlift"). Menerjemahkannya justru membuat gerakan
-       lebih sulit dikenali, bukan lebih mudah.
-    2. Nama latihan adalah frasa benda bertumpuk ("Weighted Donkey Calf Raise",
-       "Half Bird Dog"). Penerjemah substitusi tidak mengubah urutan kata dan
-       tidak tahu mana yang nama diri, jadi hasilnya salah pada nama-nama
-       kiasan seperti "bird dog". Kalimat instruksi tidak punya masalah ini
-       karena strukturnya perintah-lalu-objek.
-
-    Yang DITERJEMAHKAN adalah keterangannya: deskripsi latihan dan langkah
-    pelaksanaan (lihat id_deskripsi_latihan & id_langkah_latihan).
-
-    Yang DIRAPIKAN hanya kapitalisasinya. Dataset menulis nama gerakan dengan
-    gaya campur -- "Ab Crunch Machine" bersebelahan dengan "Incline bench
-    press" dan "Machine triceps extension-" -- dan judul kartu yang kadang
-    Title Case kadang huruf kecil terbaca seperti data yang belum selesai
-    dibersihkan. `str.title()` bukan jawabannya karena ia merusak singkatan
-    dan nama program ("FYR2" jadi "Fyr2", "MetaBurn" jadi "Metaburn"), jadi
-    yang dinaikkan hanya kata yang SELURUHNYA huruf kecil; kata yang sudah
-    memuat huruf besar dibiarkan sebagaimana penulis datanya menulisnya.
+    Istilah yang tidak dikenali dibiarkan apa adanya.
     """
     return " ".join(_kapital_kata(kata) for kata in str(title or "").split())
 
@@ -196,20 +154,10 @@ def _kapital_kata(kata: str) -> str:
 
 
 def id_deskripsi_latihan(exercise: dict, tutorial: dict | None = None) -> str:
-    """Keterangan latihan dalam bahasa Indonesia, DISUSUN dari metadata.
+    """Terjemahkan deskripsi gerakan kalimat demi kalimat.
 
-    Deskripsi asli di dataset berupa prosa pemasaran ("The banded plank jack is
-    a variation on the plank that involves moving the legs in and out..."), dan
-    prosa seperti itu tidak selamat lewat penerjemah substitusi: bahasa Inggris
-    menaruh penjelas di DEPAN kata benda, bahasa Indonesia di belakang, jadi
-    hasilnya jadi "berat badan urutan" alih-alih "rangkaian berat badan".
-    Kalimat instruksi tidak kena masalah ini (strukturnya perintah-lalu-objek),
-    karena itu langkah pelaksanaan tetap diterjemahkan.
-
-    Untuk keterangan, menyusun kalimat sendiri dari metadata yang sudah
-    terstruktur (jenis, bagian tubuh, alat, level, otot) memberi kalimat
-    Indonesia yang benar dan selalu terbaca wajar. Teks aslinya tetap
-    disediakan di halaman detail bagi yang ingin membandingkan.
+    Kalimat yang tidak dikenali dibiarkan apa adanya, dan teks aslinya tetap bisa
+    dibuka pengguna lewat halaman tutorial.
     """
     from .i18n import id_daftar, id_istilah  # lokal: hindari impor melingkar
 
@@ -241,17 +189,10 @@ def id_deskripsi_latihan(exercise: dict, tutorial: dict | None = None) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Inti gerakan (untuk kartu rekomendasi)
+# Penerjemahan nama dan deskripsi latihan
 # --------------------------------------------------------------------------- #
-# Kartu rekomendasi hanya punya ruang satu-dua baris, dan tiga keterangan yang
-# paling sering dicari -- bagian tubuh, alat, level -- SUDAH tampil sebagai chip
-# di atasnya. Mengulanginya sebagai kalimat panjang membuat kartu penuh tanpa
-# menambah informasi. Yang belum terwakili chip justru yang paling menentukan:
-# gerakannya seperti apa.
-#
-# Pola dicocokkan dari nama gerakan, diurutkan dari yang PALING SPESIFIK ke yang
-# paling umum -- "lat pulldown" harus menang atas "pull", dan "push up" atas
-# "push". Pencocokan berhenti di pola pertama yang kena.
+# Diterjemahkan per potongan istilah, bukan per kalimat utuh, supaya nama gerakan
+# yang belum pernah ditemui tetap terbaca sebagian.
 POLA_GERAK: tuple[tuple[str, str], ...] = (
     # Peregangan diperiksa PALING AWAL: namanya kerap memuat pola gerak lain
     # sebagai keterangan posisi ("spider lunge stretch", "overhead squat
@@ -369,14 +310,8 @@ def id_inti_latihan(exercise: dict, tutorial: dict | None = None) -> str:
         jenis = str(exercise.get("Type") or "").strip().lower()
         pola = POLA_PER_JENIS.get(jenis, "Melatih kekuatan otot")
 
-    # Otot target dataset tutorial lebih spesifik daripada BodyPart ("dada
-    # atas" vs "dada"), jadi dipakai kalau bisa. Tapi tutorial dicocokkan
-    # dengan kemiripan nama (find_training_tutorial), bukan kunci yang pasti,
-    # sehingga sesekali menempel ke gerakan lain -- "reverse-grip dumbbell
-    # curl" pernah tersambung ke tutorial ber-target "lats". Target hanya
-    # dipercaya kalau masih SATU KELUARGA dengan BodyPart baris itu sendiri;
-    # kalau bertabrakan, BodyPart yang menang karena ia datang dari baris
-    # latihannya sendiri dan tidak pernah salah sambung.
+    # Otot target dataset tutorial lebih spesifik daripada BodyPart dataset utama,
+    # jadi dipetakan ke istilah Indonesia yang dipakai di layar.
     target = _otot_ringkas((tutorial or {}).get("target"))
     bagian = _otot_ringkas(exercise.get("BodyPart"))
     if target and bagian and (target in bagian or bagian in target):

@@ -1,29 +1,8 @@
 """Metrik evaluasi rekomendasi berbasis peringkat (Top-N) untuk Content-Based Filtering.
 
-Modul ini dipakai notebook pengujian, BUKAN oleh aplikasi saat melayani pengguna.
-
-KENAPA BERBASIS PERINGKAT. Yang dihasilkan CBF bukan satu jawaban benar/salah,
-melainkan DAFTAR TERURUT. Metrik yang hanya menghitung berapa banyak item relevan
-di Top-N (Precision@K) memperlakukan peringkat 1 dan peringkat 10 sama saja,
-padahal pengguna membaca dari atas. Metrik yang hanya melihat item relevan
-PERTAMA (MRR) membuang seluruh sisa daftar.
-
-Dua metrik di bawah menutup kedua celah itu:
-
-1. MAP (Mean Average Precision) -- rata-rata presisi yang diukur ulang setiap
-   kali item relevan ditemukan. Item relevan yang muncul lebih awal menaikkan
-   nilai lebih besar, dan SELURUH item relevan di dalam Top-K ikut dihitung,
-   bukan hanya yang pertama.
-
-2. NDCG (Normalized Discounted Cumulative Gain) -- keuntungan tiap item relevan
-   diredam oleh logaritma peringkatnya, lalu dibagi keuntungan susunan
-   sempurna. Karena dinormalkan, kueri dengan 5 item relevan dan kueri dengan
-   200 item relevan bisa dirata-ratakan tanpa yang satu menenggelamkan yang lain.
-
-Keduanya memakai relevansi BINER: sebuah item relevan atau tidak, tanpa tingkat
-kepentingan. Itu memang bentuk kebenaran yang tersedia di sini -- sebuah menu
-berkategori "Ayam" tidak lebih atau kurang "berkategori Ayam" daripada menu ayam
-lainnya.
+Dipakai notebook pengujian, BUKAN oleh aplikasi saat melayani pengguna. Berisi
+MAP (Mean Average Precision), NDCG (Normalized Discounted Cumulative Gain), dan
+pembanding peringkat acak. Keduanya memakai relevansi biner.
 """
 from __future__ import annotations
 
@@ -41,14 +20,10 @@ def _siapkan(relevance, k: int | None) -> tuple[np.ndarray, int]:
 def average_precision_at_k(relevance, k: int | None = None, *, total_relevant: int | None = None) -> float:
     """Average Precision@K untuk SATU kueri.
 
-    `relevance` adalah penanda relevan/tidak dalam URUTAN peringkat rekomendasi
-    (indeks 0 = peringkat 1).
+        AP@K = (1 / min(R, K)) * sum P@i * rel_i
 
-        AP@K = (1 / min(R, K)) * sum_{i=1..K} P@i * rel_i
-
-    Pembaginya min(R, K), bukan K, supaya kueri yang item relevannya lebih
-    sedikit daripada K masih bisa mencapai 1,0 pada susunan sempurna. Tanpa itu,
-    kategori kecil akan selalu terlihat buruk hanya karena ukurannya.
+    Pembaginya min(R, K), bukan K, supaya kueri yang item relevannya lebih sedikit
+    daripada K masih bisa mencapai 1,0 pada susunan sempurna.
     """
     urutan, batas = _siapkan(relevance, k)
     if batas == 0:

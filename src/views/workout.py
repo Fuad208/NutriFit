@@ -11,7 +11,15 @@ from datetime import date
 from difflib import SequenceMatcher
 
 from src.database import WORKOUT_STORE
-from src.recommender import TARGET_MUSCLE_GROUPS, recommend_exercises, switch_exercise
+from src.recommender import (
+    MAX_EXERCISE_COUNT,
+    MIN_EXERCISE_COUNT,
+    NEEDS_SUPERVISION_COLUMN,
+    TARGET_MUSCLE_GROUPS,
+    default_exercise_count,
+    recommend_exercises,
+    switch_exercise,
+)
 
 from ..core.data import TRAINING_DETAIL_DIR, load_training_tutorials
 from ..core.exercise_text import (
@@ -21,7 +29,7 @@ from ..core.exercise_text import (
     id_nama_latihan,
     lexicon_is_available,
 )
-from ..core.i18n import SEMUA, id_daftar, id_istilah
+from ..core.i18n import id_daftar, id_istilah, id_tujuan
 from ..core.progress import latest_record_today
 from ..core.state import current_user, ensure_nutrition_ready, persist_workout_recommendation
 
@@ -112,6 +120,13 @@ def recommendations_have_video_tutorials(recommendations: pd.DataFrame | None, t
     return all(tutorial_has_video(find_training_tutorial(row.to_dict(), tutorials)) for _, row in recommendations.iterrows())
 
 
+def supervision_chip(row) -> str:
+    """Penanda pada kartu untuk latihan yang diambil dari level di atas level pengguna."""
+    if not bool(row.get(NEEDS_SUPERVISION_COLUMN, False)):
+        return ""
+    return '<span class="chip chip-warning">Perlu pendampingan</span>'
+
+
 def workout_view(exercises: pd.DataFrame) -> None:
     """Halaman rekomendasi latihan: filter target otot, hasilkan program, simpan, dan tampilkan kartunya."""
     st.markdown('<div class="brand">Rekomendasi Latihan Gym</div>', unsafe_allow_html=True)
@@ -128,38 +143,43 @@ def workout_view(exercises: pd.DataFrame) -> None:
         return
 
     body_parts = list(TARGET_MUSCLE_GROUPS)
-    workout_types = [SEMUA] + sorted(recommendation_exercises["Type"].dropna().unique().tolist())
-    equipment = [SEMUA] + sorted(recommendation_exercises["Equipment"].dropna().unique().tolist())
 
-    cols = st.columns(4)
+    # Formulirnya tinggal DUA isian. Jenis latihan ditentukan tujuan kebugaran dan
+    # alat ditentukan level pengalaman; keduanya bukan masukan pengguna.
+    # Lihat docs/catatan-desain.md bagian 10.
+    cols = st.columns(2)
     with cols[0]:
         body_part = st.selectbox("Target Otot", body_parts, index=body_parts.index("Dada"))
+    # Nilai bawaannya ditentukan sistem dari level pengalaman dan tingkat
+    # aktivitas, bukan dipatok 5 untuk semua orang. Tetap bisa digeser: berapa
+    # lama waktu pengguna hari ini adalah hal yang tidak diketahui sistem.
+    jumlah_bawaan = default_exercise_count(
+        profile["experience_level"], profile.get("activity_level", "Medium")
+    )
     with cols[1]:
-        # format_func: yang tampil ke user bahasa Indonesia, tapi nilai yang
-        # dipakai untuk memfilter tetap istilah asli dataset (bahasa Inggris).
-        workout_type = st.selectbox(
-            "Jenis Latihan",
-            workout_types,
-            index=workout_types.index("Strength") if "Strength" in workout_types else 0,
-            format_func=id_istilah,
-        )
-    with cols[2]:
-        equipment_preference = st.selectbox("Alat", equipment, format_func=id_istilah)
-    with cols[3]:
         limit = st.number_input(
             "Jumlah Latihan",
-            min_value=3,
-            max_value=8,
-            value=5,
+            min_value=MIN_EXERCISE_COUNT,
+            max_value=MAX_EXERCISE_COUNT,
+            value=jumlah_bawaan,
             step=1,
-            help="Berapa banyak latihan yang ingin direkomendasikan (3-8).",
+            help=(
+                f"Sistem menyarankan {jumlah_bawaan} latihan untuk level "
+                f"{id_istilah(profile['experience_level'])} dengan aktivitas "
+                f"{id_istilah(profile.get('activity_level', 'Medium'))}. "
+                f"Sesuaikan bila waktu Anda hari ini berbeda "
+                f"({MIN_EXERCISE_COUNT}-{MAX_EXERCISE_COUNT})."
+            ),
         )
+
+    st.caption(
+        f"Jenis latihan disesuaikan dengan tujuan Anda ({id_tujuan(profile['fitness_goal'])}), "
+        f"pilihan alat dengan level {id_istilah(profile['experience_level'])}, "
+        f"dan jumlahnya disarankan {jumlah_bawaan} latihan."
+    )
 
     workout_filters = {
         "body_part": body_part,
-        # Recommender mengharapkan "Any", bukan label tampilan "Semua".
-        "workout_type": "Any" if workout_type == SEMUA else workout_type,
-        "equipment_preference": "Any" if equipment_preference == SEMUA else equipment_preference,
         "experience_level": profile["experience_level"],
         "fitness_goal": profile["fitness_goal"],
         "limit": limit,
@@ -172,8 +192,6 @@ def workout_view(exercises: pd.DataFrame) -> None:
         st.session_state.exercise_recommendations = recommend_exercises(
             recommendation_exercises,
             body_part=workout_filters["body_part"],
-            workout_type=workout_filters["workout_type"],
-            equipment_preference=workout_filters["equipment_preference"],
             experience_level=workout_filters["experience_level"],
             fitness_goal=workout_filters["fitness_goal"],
             limit=workout_filters["limit"],
@@ -186,7 +204,7 @@ def workout_view(exercises: pd.DataFrame) -> None:
     else:
         restore_today_workout()
 
-    # Hanya tampilkan kalau user memang sudah menekan tombolnya. Sebelumnya
+    # Program hanya disusun setelah tombolnya ditekan, supaya pengguna tidak
     # rekomendasi ikut dibuat otomatis saat halaman dibuka (lewat pengecekan
     # needs_video_refresh), sehingga user mengira daftar itu hasil pilihannya
     # padahal filternya belum pernah dia tekan.
@@ -212,13 +230,7 @@ def workout_view(exercises: pd.DataFrame) -> None:
 
 
 def restore_today_workout() -> None:
-    """Muat kembali program latihan HARI INI dari database ke session state.
-
-    Alasannya sama dengan restore_today_menu di views/meal.py: session state
-    kosong setelah refresh/login ulang padahal record-nya masih ada, dan
-    memaksa user menekan "Buat Program Latihan" lagi berarti program yang
-    sedang dia jalani hari itu tergantikan susunan baru.
-    """
+    """Muat kembali program latihan HARI INI dari database ke session state."""
     if st.session_state.exercise_recommendations is not None:
         return
 
@@ -278,15 +290,8 @@ def display_workouts(
                 exercise = row.to_dict()
                 tutorial = find_training_tutorial(exercise, tutorials)
                 exercise_key = exercise.get("Program_ID", row.get("Title", number))
-                # height="stretch" pada kartu + satu container "stretch" di
-                # dalamnya adalah cara kartu-kartu sebaris jadi sama tinggi
-                # TANPA menambal tinggi tiap bagian isinya. Versi sebelumnya
-                # memesan 76px untuk blok nama+takaran supaya tombol sejajar;
-                # akibatnya nama yang cuma satu baris menyisakan ~26px ruang
-                # kosong tepat di antara takaran dan chip -- terlihat sebagai
-                # jarak yang tidak beralasan. Sekarang sisa ruangnya diserap
-                # container dalam, jadi jatuhnya di bawah keterangan, tempat
-                # yang memang kosong, dan tombolnya tetap rata di dasar kartu.
+        # height="stretch" pada kartu membuat seluruh kartu dalam satu baris
+        # bertinggi sama, sehingga tombolnya sejajar walau panjang judulnya berbeda.
                 with st.container(border=True, height="stretch", key=f"kartu_latihan_{number}"):
                     with st.container(height="stretch"):
                         header_cols = st.columns([0.3, 0.7], vertical_alignment="top")
@@ -332,6 +337,7 @@ def display_workouts(
                                 <span class="chip">{html.escape(id_istilah(row['BodyPart']))}</span>
                                 <span class="chip">{html.escape(id_istilah(row['Equipment']))}</span>
                                 <span class="chip">{html.escape(id_istilah(row['Level']))}</span>
+                                {supervision_chip(row)}
                             </div>
                             <div class="exercise-desc">{html.escape(id_inti_latihan(exercise, tutorial))}</div>
                             """,

@@ -1,19 +1,7 @@
-"""Akses data NutriFit ke PostgreSQL (Supabase).
+"""Lapisan akses PostgreSQL: koneksi, skema, dan operasi baca-tulis data aplikasi.
 
-SATU-SATUNYA penyimpanan aplikasi. Tidak ada driver alternatif dan tidak ada
-penyimpanan berkas: seluruh akun, riwayat, dan dataset ada di sini.
-
-ISOLASI PENGUJIAN. Skrip pengujian TIDAK boleh menulis ke data asli. Karena
-penyimpanannya kini cuma satu, isolasinya pindah ke tingkat schema Postgres:
-env `POSTGRES_SCHEMA` menentukan schema mana yang dipakai, dan tiap koneksi
-membawa `search_path` sendiri. Aplikasi memakai `public`, pengujian memakai
-schema sekali-pakai. Sengaja TANPA `,public` di belakang search_path -- kalau
-ada, tabel yang belum terbentuk di schema uji akan diam-diam terbaca dari data
-asli, dan isolasinya jadi bohong.
-
-Variabel .env yang dibutuhkan:
-    POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD,
-    POSTGRES_DATABASE, dan (opsional) POSTGRES_SCHEMA.
+Env `POSTGRES_SCHEMA` menentukan schema mana yang dipakai, sehingga skrip uji bisa
+dialihkan ke schema sekali-pakai tanpa menyentuh data asli.
 """
 
 from __future__ import annotations
@@ -24,6 +12,8 @@ import os
 from pathlib import Path
 import re
 import threading
+import time
+from functools import wraps
 from typing import Any
 from uuid import uuid4
 
@@ -32,27 +22,91 @@ import pandas as pd
 from src.paths import ENV_PATH
 
 
-# Koneksi dipakai ulang antar-query. Sebelumnya tiap pemanggilan connection()
-# membuka koneksi baru ke Supabase lalu menutupnya; handshake TLS-nya sendiri
-# makan ~3,8 detik, dan satu render halaman beranda memanggilnya 5-6 kali --
-# jadi ~20 detik hanya untuk menarik ~100 baris. Lock dipakai karena Streamlit
-# menjalankan tiap sesi di thread terpisah sementara koneksi DB tidak aman
-# dipakai bersamaan; akses jadi bergiliran, tapi tiap query kini milidetik
-# sehingga jauh lebih cepat daripada menyambung ulang terus-menerus.
+# Koneksi dipakai ulang antar-query dan disimpan per kunci konfigurasi, supaya
+# satu permintaan tidak membuka koneksi baru berkali-kali ke Supabase.
 _CONNECTION_LOCK = threading.RLock()
 _CONNECTION_CACHE: dict[str, Any] = {}
+
+# Kapan tiap koneksi terakhir dipakai, untuk memutuskan perlu diperiksa ulang
+# atau tidak. Lihat _connection_is_alive().
+_CONNECTION_LAST_USED: dict[str, float] = {}
+
+# Koneksi yang menganggur lebih lama dari ini diperiksa ke server dulu sebelum
+# dipakai ulang. Ambangnya sengaja tidak nol: memeriksa setiap kali menambah
+# satu perjalanan bolak-balik pada SEMUA query, sementara koneksi yang baru
+# saja dipakai praktis tidak mungkin sudah diputus.
+STALE_PROBE_SECONDS = 20.0
 
 # Penanda skema/migrasi sudah dijalankan untuk suatu target database.
 _SCHEMA_READY: set[str] = set()
 
 
-def _connection_is_alive(connection) -> bool:
-    """Cek cepat apakah koneksi yang di-cache masih hidup sebelum dipakai ulang."""
+def _connection_is_alive(connection, *, idle_seconds: float = 0.0) -> bool:
+    """True bila koneksi masih bisa dipakai.
+
+    Penanda `closed` hanya diketahui SISI KLIEN, jadi koneksi yang sudah menganggur
+    melewati ambang tertentu diuji dengan SELECT 1 lebih dulu.
+    """
     try:
-        return getattr(connection, "closed", 1) == 0
+        if getattr(connection, "closed", 1) != 0:
+            return False
     except Exception:
         return False
+    if idle_seconds < STALE_PROBE_SECONDS:
+        return True
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        connection.commit()
+        return True
+    except Exception:
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        return False
 
+
+# Pesan galat yang menandakan koneksinya sendiri yang putus, bukan query-nya yang
+# salah. Pooler Supavisor sesekali memutus koneksi tanpa pemberitahuan, dan
+# kegagalannya baru terlihat saat statement berikutnya dikirim -- termasuk pada
+# koneksi yang baru saja dibuka, sehingga pemeriksaan di _connection_is_alive()
+# tidak bisa menangkapnya.
+_GALAT_KONEKSI = (
+    "server closed the connection",
+    "consuming input failed",
+    "connection is closed",
+    "connection is bad",
+    "ssl connection has been closed",
+    "terminating connection",
+    "eof detected",
+)
+
+
+def _koneksi_putus(galat: BaseException) -> bool:
+    """Apakah galat ini soal koneksinya, bukan soal isi query-nya."""
+    pesan = str(galat).lower()
+    return any(tanda in pesan for tanda in _GALAT_KONEKSI)
+
+
+def ulangi_bila_koneksi_putus(fungsi):
+    """Bungkus fungsi agar dicoba sekali lagi bila koneksinya terputus di tengah.
+
+    `append_record()` sengaja TIDAK dipasangi dekorator ini: ia menambah baris, dan
+    mengulangnya berisiko menggandakan data.
+    """
+
+    @wraps(fungsi)
+    def pembungkus(*args, **kwargs):
+        try:
+            return fungsi(*args, **kwargs)
+        except Exception as galat:
+            if not _koneksi_putus(galat):
+                raise
+            reset_connection_cache()
+            return fungsi(*args, **kwargs)
+
+    return pembungkus
 
 def reset_connection_cache() -> None:
     """Tutup & buang koneksi yang di-cache (dipakai di test / setelah gagal)."""
@@ -63,6 +117,7 @@ def reset_connection_cache() -> None:
             except Exception:
                 pass
         _CONNECTION_CACHE.clear()
+        _CONNECTION_LAST_USED.clear()
         _SCHEMA_READY.clear()
 
 
@@ -232,12 +287,29 @@ class SQLStore:
             for part in (config["host"], config["port"], config["user"], config["database"], self.schema)
         )
 
+    @staticmethod
+    def _session_timeouts() -> list[tuple[str, str]]:
+        """Daftar timeout sesi yang dipasang pada tiap koneksi baru.
+
+        Dipasang lewat perintah SET, bukan opsi startup libpq, karena pooler Supavisor
+        membuang opsi startup selain search_path.
+        """
+        pasangan = []
+        for env, parameter in (
+            ("POSTGRES_IDLE_TX_TIMEOUT_MS", "idle_in_transaction_session_timeout"),
+            ("POSTGRES_LOCK_TIMEOUT_MS", "lock_timeout"),
+        ):
+            nilai = (getenv(env) or "").strip()
+            if nilai.isdigit():
+                pasangan.append((parameter, nilai))
+        return pasangan
+
     def _open_connection(self):
-        """Buka koneksi baru ke PostgreSQL dengan search_path dikunci ke schema tujuan."""
+        """Buka satu koneksi baru ke PostgreSQL beserta search_path dan timeout sesinya."""
         import psycopg
         from psycopg.rows import dict_row
 
-        return psycopg.connect(
+        connection = psycopg.connect(
             host=self.config["host"],
             port=self.config["port"],
             user=self.config["user"],
@@ -246,6 +318,13 @@ class SQLStore:
             row_factory=dict_row,
             options=f"-c search_path={self.schema}",
         )
+        timeouts = self._session_timeouts()
+        if timeouts:
+            with connection.cursor() as cursor:
+                for parameter, nilai in timeouts:
+                    cursor.execute(f"SET {parameter} = '{nilai}'")
+            connection.commit()
+        return connection
 
     @contextmanager
     def connection(self):
@@ -253,22 +332,28 @@ class SQLStore:
         key = self._connection_key()
         with _CONNECTION_LOCK:
             connection = _CONNECTION_CACHE.get(key)
-            if connection is not None and not _connection_is_alive(connection):
-                # Koneksi mati (idle timeout, restart server, jaringan putus).
-                # Buang diam-diam lalu sambung ulang di bawah.
-                try:
-                    connection.close()
-                except Exception:
-                    pass
-                _CONNECTION_CACHE.pop(key, None)
-                connection = None
+            if connection is not None:
+                menganggur = time.monotonic() - _CONNECTION_LAST_USED.get(key, 0.0)
+                if not _connection_is_alive(connection, idle_seconds=menganggur):
+                    # Koneksi mati (idle timeout, restart server, jaringan putus,
+                    # atau pooler yang memutus diam-diam). Buang lalu sambung
+                    # ulang di bawah.
+                    try:
+                        connection.close()
+                    except Exception:
+                        pass
+                    _CONNECTION_CACHE.pop(key, None)
+                    _CONNECTION_LAST_USED.pop(key, None)
+                    connection = None
             if connection is None:
                 connection = self._open_connection()
                 _CONNECTION_CACHE[key] = connection
+            _CONNECTION_LAST_USED[key] = time.monotonic()
 
             try:
                 yield connection
                 connection.commit()
+                _CONNECTION_LAST_USED[key] = time.monotonic()
             except Exception:
                 # Setelah error, koneksi bisa tertinggal di state transaksi yang
                 # rusak. Rollback lalu buang dari cache supaya pemanggil
@@ -282,15 +367,17 @@ class SQLStore:
                 except Exception:
                     pass
                 _CONNECTION_CACHE.pop(key, None)
+                _CONNECTION_LAST_USED.pop(key, None)
                 raise
 
     def placeholder(self) -> str:
         """Simbol placeholder parameter query."""
         return "%s"
 
+    @ulangi_bila_koneksi_putus
     def ensure_schema(self) -> None:
         """Buat dan selaraskan schema beserta seluruh tabel serta kolom; hanya dijalankan sekali per proses."""
-        # Cukup sekali per proses. Dulu seluruh DDL dijalankan ulang di SETIAP
+        # Cukup sekali per proses. Menjalankan seluruh DDL di setiap query
         # query -- termasuk tiap baca data -- dan itu yang bikin satu query
         # sederhana makan ~1,8 detik. Ditandai selesai hanya kalau benar-benar
         # sukses, jadi kalau gagal akan dicoba lagi di pemanggilan berikutnya.
@@ -366,6 +453,7 @@ class SQLStore:
                     cursor.execute(statement)
         _SCHEMA_READY.add(key)
 
+    @ulangi_bila_koneksi_putus
     def load_users(self) -> dict:
         """Baca seluruh baris tabel users menjadi dict {email: data user}."""
         self.ensure_schema()
@@ -392,6 +480,7 @@ class SQLStore:
             users[user["email"]] = user
         return users
 
+    @ulangi_bila_koneksi_putus
     def save_users(self, users: dict) -> None:
         """Sinkronkan tabel users dengan dict yang diberikan: upsert yang ada, hapus yang tidak lagi terdaftar."""
         self.ensure_schema()
@@ -404,6 +493,7 @@ class SQLStore:
                 for email, user in users.items():
                     self.upsert_user(cursor, email, user)
 
+    @ulangi_bila_koneksi_putus
     def delete_user(self, email: str, user_id: str | None) -> None:
         """Hapus satu akun beserta seluruh barisnya di ketiga tabel riwayat."""
         self.ensure_schema()
@@ -447,6 +537,7 @@ class SQLStore:
         """
         cursor.execute(sql, tuple(payload.values()))
 
+    @ulangi_bila_koneksi_putus
     def load_records(self, store: str) -> list[dict]:
         """Baca seluruh baris tabel store lalu dekode kolom JSON dan timestamp-nya."""
         self.ensure_schema()
@@ -458,6 +549,7 @@ class SQLStore:
                 rows = cursor.fetchall()
         return [decode_record(store, row) for row in rows]
 
+    @ulangi_bila_koneksi_putus
     def save_records(self, store: str, records: list[dict]) -> None:
         """Kosongkan tabel store lalu isi ulang dengan daftar record yang diberikan."""
         self.ensure_schema()
@@ -475,6 +567,7 @@ class SQLStore:
             with connection.cursor() as cursor:
                 self.insert_record(cursor, store, record)
 
+    @ulangi_bila_koneksi_putus
     def delete_record(self, store: str, record_id: str) -> None:
         """Hapus satu baris tabel store berdasarkan id."""
         self.ensure_schema()

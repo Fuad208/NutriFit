@@ -1,16 +1,4 @@
-"""Validasi metrik evaluasi klasterisasi terhadap data yang jawabannya diketahui.
-
-Hopkins Statistic gampang diimplementasikan terbalik: kalau pembilang dan
-penyebutnya tertukar, angkanya tetap "masuk akal" (0-1) tapi artinya berlawanan
-— data acak akan terlihat sangat layak diklaster. Karena itu di sini diuji pada
-tiga bentuk data yang jawabannya sudah pasti:
-
-  kelompok terpisah jelas -> mendekati 1
-  acak seragam            -> sekitar 0,5
-  kisi teratur            -> di bawah 0,5
-
-Kalau ketiganya benar, tanda dan skalanya bisa dipercaya.
-"""
+"""Uji metrik dan kestabilan klaster: Hopkins, Gower, Rasio Hamming, dan reproduksibilitas."""
 import sys
 from pathlib import Path
 

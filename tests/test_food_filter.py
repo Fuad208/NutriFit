@@ -1,21 +1,7 @@
-"""Uji regresi saringan menu: kata "segar" dan sinkronisasi CSV vs basis data.
+"""Uji saringan menu layak rekomendasi.
 
-LATAR MASALAHNYA. `INGREDIENT_PATTERN` memuat `\\bsegar\\b` sebagai penanda bahan
-mentah. Pada dataset TKPI, kata itu punya DUA arti yang berlawanan:
-
-    "Sapi daging gemuk segar", "Udang galah segar", "Daun katuk segar"
-        -> bahan mentah, harus dimasak, tidak boleh direkomendasikan.
-    "Mangga segar", "Pisang kepok segar", "Apel malang segar"
-        -> justru bentuk siap santapnya, dan camilan tersehat yang bisa
-           ditawarkan aplikasi gizi.
-
-Menyamaratakan keduanya membuang 52 buah segar diam-diam. Tidak ada galat yang
-muncul; jumlah menu hanya berkurang tanpa alasan yang terlihat.
-
-Cacat ini sempat tak terdeteksi karena pengujian memakai `data/food_nutrition.csv`
-yang memuat nama sudah dipendekkan ("Mangga"), sedangkan tabel database yang
-benar-benar dibaca aplikasi menyimpan nama asli TKPI ("Mangga segar"). Karena itu
-berkas ini juga menguji bahwa kedua sumber tetap sinkron.
+Memastikan bahan mentah, non-pangan, dan gizi tidak masuk akal tersaring, hidangan
+sah tetap lolos, pola bebas grup penangkap, serta CSV benih sinkron dengan database.
 """
 import sys
 import warnings
@@ -135,12 +121,8 @@ for nama in TIDAK_LAYAK:
 print(f"   {len(TIDAK_LAYAK)} temuan terkonfirmasi tetap tertolak")
 
 print("\n== bumbu & bahan pelengkap harus tertolak ==")
-# CATATAN KEPUTUSAN. Penyisiran adversarial sebelumnya MEMBANTAH sebagian nama di
-# bawah dengan alasan "komponen sah hidangan Indonesia" -- dan sebagai komponen
-# memang benar. Tetapi pemilik produk menilai kehadirannya di daftar rekomendasi
-# tetap salah: aplikasi menyodorkan tiap baris sebagai menu yang dimakan sendiri
-# dalam porsi gram, dan tidak satu pun dari ini disantap begitu. Penilaian pemilik
-# produk mengalahkan hasil pembantah otomatis.
+# Penyisiran adversarial membantah sebagian tuduhan awal; yang gugur tetap harus
+# lolos saringan. Rinciannya: docs/catatan-desain.md bagian 14.
 BUMBU = ["Petis Ikan", "Petis Udang", "Petis udang pasta", "Taoco",
          "Tauco cap DAS cake", "Tauji cap singa", "Prey (bawang daun)",
          "Kepala Susu (Krim)", "Asam masak di pohon",

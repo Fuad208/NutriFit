@@ -1,30 +1,8 @@
-"""Metrik evaluasi klasterisasi: kelayakan data, stabilitas, dan jarak per tipe data.
+"""Metrik penilaian mutu klaster: Hopkins, jarak Gower, dan Rasio Hamming.
 
-Modul ini dipakai notebook pengujian, BUKAN oleh aplikasi saat melayani pengguna.
-Ia menjawab tiga pertanyaan yang tidak dijawab oleh satu nilai metrik mutu:
-
-1. Apakah datanya memang layak diklasterkan sama sekali? -> Hopkins Statistic.
-   Silhouette, Calinski-Harabasz, dan Cost selalu menghasilkan angka, bahkan
-   pada data acak murni. Hopkins memeriksa lebih dulu apakah ada struktur yang
-   pantas dicari.
-
-2. Apakah hasilnya berubah kalau algoritmanya dijalankan ulang? -> uji stabilitas
-   atas banyak inisialisasi acak. Nilai yang bagus tapi berbeda-beda tiap
-   eksekusi tidak bisa dilaporkan sebagai hasil penelitian.
-
-3. Jarak apa yang benar untuk tipe datanya? Numerik memakai Euclid,
-   kategorikal memakai Hamming (matching dissimilarity), campuran memakai
-   gabungan keduanya. Memakai Euclid pada data kategorikal menghasilkan angka
-   yang tidak berarti apa-apa.
-
-Satu jarak lagi tinggal di tempat lain: **Gower Distance**, yang dipakai
-menghitung Silhouette K-Prototypes, ada di `src/recommender.py`
-(`gower_pairwise_distances`) bersama fungsi jarak lain milik aplikasi, karena
-halaman Admin ikut menampilkan angkanya.
-
-Penetapan jumlah klaster tidak ada di modul ini sama sekali. K ditetapkan
-Metode Siku oleh `recommender.elbow_cluster_count`, dan metrik di sini hanya
-menilai hasilnya.
+Dipakai notebook pengujian dan panel admin, BUKAN oleh aplikasi saat melayani
+pengguna. Statistik Hopkins menguji apakah data layak diklasterkan sebelum
+algoritma dijalankan; Rasio Hamming menilai pemisahan klaster kategorikal.
 """
 from __future__ import annotations
 
@@ -160,19 +138,9 @@ def hopkins_mixed(numeric: np.ndarray, categorical: np.ndarray, *, gamma: float 
 
 
 def hamming_separation(values: np.ndarray, labels: np.ndarray) -> dict:
-    """Mutu klaster kategorikal yang dinyatakan MURNI dalam Hamming distance.
+    """Rata-rata jarak Hamming di dalam klaster dan antar klaster, beserta rasionya.
 
-    Silhouette memaksa data kategorikal masuk kerangka geometris yang tidak
-    dimilikinya. Ukuran yang setara tapi jujur untuk tipe data ini adalah
-    membandingkan langsung dua rata-rata jarak Hamming:
-
-        within  = rata-rata ketidakcocokan antar anggota klaster YANG SAMA
-        between = rata-rata ketidakcocokan antar anggota klaster BERBEDA
-        rasio   = within / between
-
-    Rasio jauh di bawah 1 berarti anggota satu klaster jauh lebih mirip satu
-    sama lain daripada dengan anggota klaster lain -- itulah definisi klaster
-    yang baik untuk data kategorikal.
+    Makin kecil rasionya makin terpisah klasternya.
     """
     distances = hamming_distance_matrix(values)
     same_cluster = labels[:, None] == labels[None, :]

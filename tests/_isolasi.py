@@ -1,21 +1,8 @@
-"""Isolasi penyimpanan untuk skrip pengujian.
+"""Isolasi pengujian di tingkat schema Postgres.
 
-Penyimpanan aplikasi cuma satu (Supabase), jadi skrip uji tidak punya penampung
-sementara di luar database. Isolasinya dilakukan di tingkat SCHEMA Postgres:
-tiap skrip memakai schema tersendiri yang dibuat dari nol di awal dan dibuang
-lagi setelah selesai.
-
-Yang membuat ini aman:
-
-- `POSTGRES_SCHEMA` mengunci `search_path` koneksi ke schema uji saja, TANPA
-  `public` di belakangnya -- jadi kalau ada tabel yang belum terbentuk, query-nya
-  gagal terang-terangan alih-alih diam-diam membaca data asli.
-- Tabelnya dibentuk oleh `ensure_schema()` yang sama dengan yang dipakai
-  aplikasi, sehingga yang diuji benar-benar skema yang sesungguhnya.
-- Schema dibuang di awal DAN lewat atexit di akhir, jadi eksekusi yang putus
-  di tengah tidak meninggalkan sampah yang mengacaukan eksekusi berikutnya.
-
-Dipanggil PALING ATAS di tiap skrip uji, sebelum apa pun dari `src` diimpor.
+`pakai_schema_uji()` mengisi env POSTGRES_SCHEMA dengan schema sekali-pakai,
+membuangnya lebih dulu supaya mulai dari nol, lalu membuangnya lagi lewat atexit.
+Lihat docs/catatan-desain.md bagian 19.
 """
 
 from __future__ import annotations
@@ -32,26 +19,79 @@ if str(ROOT) not in sys.path:
 
 
 def _jalankan_ddl(perintah: str) -> None:
-    """Jalankan satu perintah DDL lewat koneksi biasa."""
-    from src.database import SQLStore
+    """Jalankan satu perintah DDL lewat koneksi biasa.
 
-    store = SQLStore()
-    # DROP/CREATE SCHEMA tidak bergantung pada search_path, jadi tetap aman
-    # dijalankan lewat koneksi yang search_path-nya menunjuk schema yang
-    # kebetulan belum ada.
-    with store.connection() as koneksi:
-        with koneksi.cursor() as kursor:
-            kursor.execute(perintah)
+    Dibungkus `ulangi_bila_koneksi_putus` dengan alasan yang sama seperti di
+    aplikasi: pooler Supabase sesekali memutus koneksi tanpa pemberitahuan, dan
+    kalau itu kebetulan mengenai DROP SCHEMA di akhir pengujian, schema ujinya
+    tertinggal dan mengacaukan eksekusi berikutnya. Perintah yang dipakai di
+    sini seluruhnya memakai IF EXISTS, jadi aman diulang.
+    """
+    from src.database import SQLStore, ulangi_bila_koneksi_putus
+
+    @ulangi_bila_koneksi_putus
+    def _jalankan() -> None:
+        store = SQLStore()
+        # DROP/CREATE SCHEMA tidak bergantung pada search_path, jadi tetap aman
+        # dijalankan lewat koneksi yang search_path-nya menunjuk schema yang
+        # kebetulan belum ada.
+        with store.connection() as koneksi:
+            with koneksi.cursor() as kursor:
+                kursor.execute(perintah)
+
+    _jalankan()
+
+
+    # Koneksi yang ditinggalkan menggantung di tengah transaksi menahan kunci pada
+    # schema uji, sehingga DROP SCHEMA pada eksekusi berikutnya bisa menggantung.
+    # Timeout di bawah membuat koneksi seperti itu dilepas sendiri.
+IDLE_TX_TIMEOUT_MS = "30000"
+LOCK_TIMEOUT_MS = "15000"
+
+
+def _pemegang_kunci(schema: str) -> str:
+    """Ringkasan sesi lain yang sedang memegang kunci di schema uji, untuk pesan galat."""
+    try:
+        from src.database import SQLStore
+
+        with SQLStore().connection() as koneksi:
+            with koneksi.cursor() as kursor:
+                kursor.execute(
+                    """
+                    SELECT pid, state, query
+                      FROM pg_stat_activity
+                     WHERE pid <> pg_backend_pid()
+                       AND datname = current_database()
+                       AND state LIKE 'idle in transaction%'
+                    """
+                )
+                baris = kursor.fetchall()
+    except Exception:                                    # diagnosis, bukan bagian uji
+        return ""
+    if not baris:
+        return ""
+    isi = "; ".join(f"pid {r['pid']} ({r['state']})" for r in baris)
+    return (
+        f"\n[isolasi] sesi menggantung yang mungkin memegang kunci {schema}: {isi}"
+        f"\n[isolasi] periksa dulu query-nya, lalu: SELECT pg_terminate_backend(<pid>)"
+    )
 
 
 def pakai_schema_uji(nama: str) -> str:
     """Alihkan seluruh akses database ke schema uji yang kosong dan sekali pakai."""
     schema = f"uji_{nama}"
     os.environ["POSTGRES_SCHEMA"] = schema
+    os.environ.setdefault("POSTGRES_IDLE_TX_TIMEOUT_MS", IDLE_TX_TIMEOUT_MS)
+    os.environ.setdefault("POSTGRES_LOCK_TIMEOUT_MS", LOCK_TIMEOUT_MS)
 
     from src.database import reset_connection_cache
 
-    _jalankan_ddl(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+    try:
+        _jalankan_ddl(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+    except Exception as galat:
+        raise RuntimeError(
+            f"gagal membuang schema uji {schema}: {galat}{_pemegang_kunci(schema)}"
+        ) from galat
     # Cache koneksi DAN penanda _SCHEMA_READY ikut dikosongkan, supaya
     # ensure_schema() benar-benar membangun ulang tabelnya setelah di-drop.
     reset_connection_cache()

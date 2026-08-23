@@ -1,6 +1,6 @@
 # Pengujian NutriFit
 
-Sebelas skrip verifikasi yang bisa dijalankan langsung, tanpa pytest dan **tanpa
+Dua belas skrip verifikasi yang bisa dijalankan langsung, tanpa pytest dan **tanpa
 menyentuh data asli**.
 
 ```bash
@@ -13,6 +13,7 @@ menyentuh data asli**.
 .venv/Scripts/python.exe tests/test_evaluation_metrics.py # Metode Siku, Gower, MAP & NDCG
 .venv/Scripts/python.exe tests/test_claims.py             # klaim harian
 .venv/Scripts/python.exe tests/test_delete_confirmation.py# konfirmasi hapus riwayat
+.venv/Scripts/python.exe tests/test_goal_guardrail.py     # pagar tujuan berbasis BMI
 .venv/Scripts/python.exe tests/test_app_smoke.py          # render halaman (Streamlit AppTest)
 .venv/Scripts/python.exe tests/test_legacy_records.py     # kompatibilitas record lama
 ```

@@ -1,18 +1,7 @@
-"""Klaim harian: menu yang sudah dimakan & latihan yang sudah dikerjakan.
+"""Penandaan menu dan latihan yang benar-benar dikerjakan pengguna hari ini.
 
-Dashboard membiarkan user menandai apa yang benar-benar dia jalani hari ini,
-lalu target kalori dan rasio makro hari itu menyesuaikan diri:
-
-- menu yang diklaim menambah kalori & makro yang MASUK;
-- latihan yang diklaim menambah perkiraan kalori yang KELUAR, sehingga sisa
-  kalori yang boleh dikonsumsi bertambah.
-
-Sama seperti core/progress.py, modul ini sengaja tidak menyentuh streamlit.
-Statusnya juga tidak disimpan sebagai kolom baru: tiap klaim menulis record
-rekomendasi baru berisi seluruh state saat itu, persis pola yang sudah dipakai
-persist_meal_recommendation. Konsekuensinya satu hari bisa punya banyak record,
-jadi status "sekarang" untuk satu item = record TERAKHIR hari itu yang masih
-memuat item tersebut (lihat resolve_* di bawah).
+Menyimpan status klaim, menghitung gizi yang sudah dikonsumsi, dan menaksir
+kalori yang terbakar dari program latihan yang ditandai selesai.
 """
 
 from __future__ import annotations

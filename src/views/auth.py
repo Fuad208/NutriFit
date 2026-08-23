@@ -201,13 +201,7 @@ def register_form() -> None:
 
 
 def baris_tautan(teks: str, label: str, kunci: str, tujuan: str) -> None:
-    """Sepasang "keterangan + tautan" yang berhenti di tengah kolom formulir.
-
-    Diwujudkan sebagai dua kolom -- keterangan rata KANAN di kolom kiri,
-    tautan rata KIRI di kolom kanan -- sehingga pasangannya selalu bertemu di
-    garis tengah berapa pun lebar layarnya. Menengahkan tombol Streamlit secara
-    langsung tidak bisa: lebarnya mengikuti isi, bukan kolomnya.
-    """
+    """Satu baris teks dengan tombol tautan ke halaman lain."""
     with st.container(key="baris_kaki_auth"):
         kiri, kanan = st.columns(2)
         with kiri:
@@ -228,14 +222,9 @@ def login_form() -> None:
     """Formulir masuk: verifikasi kredensial, pemutakhiran hash lama, lalu pemulihan konteks pengguna."""
     judul_auth("Selamat Datang Kembali", "Masukkan data akun Anda untuk masuk.")
 
-    # Halaman ini sengaja TIDAK memakai st.form, berbeda dari halaman daftar.
-    # Rancangannya menaruh tautan "Lupa Password?" di antara kotak sandi dan
-    # tombol "Masuk", sedangkan st.form hanya mengizinkan tombol kirim di
-    # dalamnya -- dan <a href="?page=..."> bukan jalan keluar, karena Streamlit
-    # memaksa target="_blank" pada setiap tautan markdown non-#hash sehingga
-    # tautannya akan membuka tab baru.
-    #
-    # Konsekuensinya: menekan Enter di kotak isian tidak lagi mengirim formulir.
+    # Halaman ini sengaja tidak memakai st.form: tautan "Lupa Password?" harus
+    # berada di antara kotak sandi dan tombol Masuk, sedangkan st.form hanya
+    # mengizinkan tombol kirim di dalamnya.
     with st.container(key="kartu_masuk"):
         st.markdown(label_isian("Email", wajib=True), unsafe_allow_html=True)
         email = st.text_input(
@@ -274,16 +263,10 @@ def login_form() -> None:
                 "Gunakan \"Lupa Password?\" di atas untuk membuat kata sandi baru."
             )
         elif user and verify_password(user, password):
-            # Status verifikasi baru dicek SETELAH password benar. Kalau dicek
-            # duluan, orang bisa menebak email mana yang terdaftar cuma dengan
-            # password asal -- pesan "belum diverifikasi" sudah membocorkan
-            # bahwa akunnya ada (akun terverifikasi & akun tidak ada sama-sama
-            # balas "Invalid email or password").
-            # Migrasi hash lama -> Argon2id. Dilakukan di sini karena hanya
-            # pada titik inilah aplikasi memegang kata sandi asli; hash SHA-256
-            # tidak bisa dikonversi tanpa itu. Dijalankan sebelum pengecekan
-            # verifikasi email supaya akun yang belum terverifikasi pun ikut
-            # dimigrasi begitu kata sandinya terbukti benar.
+            # Status verifikasi dicek SETELAH kata sandi benar, supaya pesan
+            # "belum diverifikasi" tidak membocorkan surel mana yang terdaftar.
+            # Migrasi hash lama dijalankan lebih dulu karena hanya pada titik ini
+            # aplikasi memegang kata sandi aslinya.
             if password_needs_upgrade(user):
                 upgrade_password_hash(email_clean, password)
 

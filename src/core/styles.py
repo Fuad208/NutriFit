@@ -1042,6 +1042,15 @@ def inject_css() -> None:
             border-color: #FBC4C4;
             color: var(--green-dark);
         }
+        /* Penanda latihan yang diambil dari level di atas level pengguna.
+           Warnanya sengaja berbeda dari chip lain di baris yang sama: chip
+           lainnya sekadar keterangan, yang ini peringatan. */
+        .chip-row .chip.chip-warning {
+            background: #FFF4E5;
+            border-color: #F0B357;
+            color: #8E5405;
+            font-weight: 600;
+        }
         .meal-row {
             border: 1px solid var(--line);
             background: #ffffff;

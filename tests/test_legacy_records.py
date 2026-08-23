@@ -1,11 +1,4 @@
-"""Uji jalur naik-versi: record LAMA (sebelum perubahan hari ini) harus tetap terbaca.
-
-Database milik user sudah memuat record menu & latihan yang dibuat sebelum
-kolom Is_Snack / Food_Category / meal_slot / slot_quota_calories ada, dan sebelum
-distribusi slot diubah. Halaman Rekomendasi Menu memulihkan record hari ini dari
-database, jadi kalau bentuk lama membuat halaman error, user akan menemukannya
-persis saat membuka aplikasi -- bukan saat menekan tombol apa pun.
-"""
+"""Uji kompatibilitas record lama: profil tanpa kolom baru tetap bisa dibaca dan dirender."""
 import os
 import sys
 from pathlib import Path

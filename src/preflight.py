@@ -1,23 +1,7 @@
-"""Pemeriksaan lingkungan sebelum aplikasi diimpor.
+"""Pemeriksaan lingkungan sebelum aplikasi dijalankan.
 
-MASALAHNYA. Di komputer ini ada DUA instalasi streamlit: venv proyek
-(`.venv`, Python 3.11, streamlit 1.61) dan instalasi `pip install --user` pada
-Python 3.12 yang hanya punya streamlit 1.46 tanpa argon2-cffi maupun
-psycopg. Kalau aplikasi dijalankan memakai yang kedua, streamlit-nya ketemu dan
-server tetap menyala, lalu proses mati di tengah impor dengan:
-
-    ModuleNotFoundError: No module named 'argon2'
-
-Traceback itu menunjuk ke `src/core/state.py`, seolah-olah ada yang salah pada
-kodenya -- padahal berkasnya baik-baik saja dan paketnya memang sudah terpasang,
-hanya di lingkungan yang berbeda. Modul ini menerjemahkan gejala yang
-menyesatkan itu menjadi instruksi yang bisa langsung dijalankan.
-
-Menambal lingkungan 3.12 dengan memasang paket yang kurang TIDAK menyelesaikan
-masalah: streamlit 1.46 di sana belum punya API yang dipakai aplikasi ini
-(`width="stretch"`, `st.rerun(scope=...)`), jadi ia akan gagal lagi beberapa
-langkah kemudian dengan pesan yang lebih membingungkan. Satu-satunya jalan yang
-benar adalah menjalankan lewat venv.
+Mengubah galat impor yang menunjuk berkas yang sebenarnya tidak bermasalah
+menjadi instruksi cara menjalankan aplikasi lewat venv yang benar.
 """
 from __future__ import annotations
 

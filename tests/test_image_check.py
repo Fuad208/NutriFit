@@ -1,14 +1,6 @@
-"""Uji pemeriksa gambar: pembatasan laju TIDAK boleh terbaca sebagai gambar mati.
+"""Uji pemeriksa gambar: membedakan tautan mati dari pembatasan laju host.
 
-LATAR MASALAHNYA. Aplikasi membuang menu yang gambarnya tidak bisa ditampilkan.
-Pemeriksaannya menembak 260 URL sekaligus dengan 20 worker, dan host seperti
-upload.wikimedia.org membalas HTTP 429 kalau diserbu seperti itu. Versi lama
-memperlakukan 429 sama dengan 404 -- gambar dianggap mati, menunya dibuang, dan
-hasilnya DISIMPAN ke cache disk selama 7 hari.
-
-Akibatnya jumlah menu yang direkomendasikan berubah-ubah antar-eksekusi walaupun
-datanya sama persis: tergantung URL mana yang kebetulan kena throttle. Untuk
-laporan penelitian, angka yang tidak bisa direproduksi adalah masalah serius.
+Menjaga sifat yang membuat jumlah menu bisa direproduksi.
 """
 import sys
 from pathlib import Path

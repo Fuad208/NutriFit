@@ -14,3 +14,7 @@ venv/
 
 # Cache hasil cek URL gambar (dibangun ulang otomatis)
 data/.image_check_cache.json
+
+# Penanda versi dataset (dibangun ulang otomatis saat admin menyimpan data)
+data/.dataset_version
+data/.dataset_version.tmp

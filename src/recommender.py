@@ -27,10 +27,8 @@ from .nutrition import NutritionResult
 from .paths import DATA_DIR
 
 
-# Pola distribusi energi harian yang lazim dipakai dalam penyelenggaraan makanan.
-# Empat slot, dan jumlah proporsinya PERSIS 1,0 -- itu yang membuat total kuota
-# seluruh slot selalu setara dengan kebutuhan energi harian pengguna. Contoh untuk
-# kebutuhan 2.000 kkal: 500 / 600 / 400 / 500 kkal.
+# Proporsi kuota kalori tiap slot waktu makan. Jumlahnya persis 1,0 sehingga
+# total kuota keempat slot selalu sama dengan kebutuhan energi harian pengguna.
 MEAL_DISTRIBUTION = {
     "Breakfast": 0.25,
     "Lunch": 0.30,
@@ -38,27 +36,59 @@ MEAL_DISTRIBUTION = {
     "Dinner": 0.25,
 }
 
-# Isi tiap slot dinyatakan sebagai daftar klaster K-Means makanan
-# (A = tinggi karbohidrat, B = tinggi protein, C = rendah kalori). Panjang daftar
-# = jumlah item pada slot itu, dan kuota slot dibagi rata ke tiap item supaya
-# penjumlahan seluruh slot tetap sama dengan kebutuhan energi harian.
-MEAL_TEMPLATE = {
-    "Breakfast": ["A", "B"],
-    "Lunch": ["A", "B", "C"],
-    # Camilan hanya SATU item. Dua item membuat "camilan" terbaca seperti waktu
-    # makan keempat, dan kuota 20% yang dibagi dua menghasilkan dua porsi kecil
-    # yang justru lebih merepotkan daripada satu porsi utuh.
-    "Snack": ["C"],
-    "Dinner": ["B", "C"],
+# Susunan peran gizi tiap slot, satu template per tujuan kebugaran. Peran gizi
+# berasal dari K-Means makanan: A tinggi karbohidrat, B protein ramping,
+# C rendah kalori, D protein berlemak. Panjang daftar = jumlah item pada slot
+# itu, dan kuota slot dibagi rata ke tiap item.
+# Alasan pemilihan tiap template: docs/catatan-desain.md bagian 7.
+MEAL_TEMPLATES = {
+    # Menurunkan berat: satu-satunya slot karbohidrat ada di makan siang, dan
+    # peran D tidak dipakai sama sekali.
+    "Lose Weight": {
+        "Breakfast": ["B", "C"],
+        "Lunch": ["A", "B", "C"],
+        "Snack": ["C"],
+        "Dinner": ["B", "C"],
+    },
+    # Menjaga berat: satu slot karbohidrat di sarapan dan makan siang.
+    "Maintain Weight": {
+        "Breakfast": ["A", "B"],
+        "Lunch": ["A", "B", "C"],
+        "Snack": ["C"],
+        "Dinner": ["B", "C"],
+    },
+    # Menaikkan berat: karbohidrat di setiap waktu makan, satu slot protein
+    # berlemak, dan satu slot rendah kalori dipertahankan di makan malam.
+    "Gain Weight": {
+        "Breakfast": ["A", "B"],
+        "Lunch": ["A", "B", "D"],
+        "Snack": ["A"],
+        "Dinner": ["A", "C"],
+    },
 }
+
+# Tujuan yang dipakai bila profil pengguna tidak memuat tujuan yang dikenali --
+# record lama, atau pemanggilan dari notebook yang tidak mengoper tujuan.
+DEFAULT_FITNESS_GOAL = "Maintain Weight"
 
 SNACK_SLOT = "Snack"
 BREAKFAST_SLOT = "Breakfast"
 
-# Makanan pokok sumber karbohidrat utama. Dalam SATU slot hanya boleh ada satu.
-# Tanpa aturan ini, memilih preferensi "Nasi" membuat slot makan siang berisi
-# "Nasi" + "Nasi goreng" sekaligus -- dua kali makanan pokok yang sama, dan
-# secara gizi maupun akal sehat itu bukan susunan sepiring makan.
+# Slot makan berat. Ketiganya memakai pagar yang sama: kudapan manis dan
+# jajanan yang selalu berstatus camilan tidak boleh mengisi salah satunya.
+MAIN_MEAL_SLOTS = ("Breakfast", "Lunch", "Dinner")
+
+
+def meal_template(fitness_goal: str | None = None) -> dict[str, list[str]]:
+    """Susunan peran gizi tiap slot untuk satu tujuan kebugaran.
+
+    Camilan selalu satu item pada ketiga tujuan.
+    """
+    goal = normalize_goal(fitness_goal) if fitness_goal else DEFAULT_FITNESS_GOAL
+    return MEAL_TEMPLATES.get(goal, MEAL_TEMPLATES[DEFAULT_FITNESS_GOAL])
+
+# Makanan pokok sumber karbohidrat utama. Dipakai is_staple_food() untuk
+# membatasi satu makanan pokok per slot.
 STAPLE_PATTERN = (
     r"^nasi\b|\bnasi\b|^bubur\b|\bbubur\b|^lontong\b|\bketupat\b|^ketupat\b"
     r"|^mie\b|^mi\b|\bmie\b|^bihun\b|\bbihun\b|^kwetiau\b|^misoa\b|^makaroni\b"
@@ -67,11 +97,8 @@ STAPLE_PATTERN = (
     r"|^rasbi\b|^rasi\b|^kapurung\b|^intip\b"
 )
 
-# Bentuk sajian yang tidak pantas jadi menu SARAPAN walaupun sah sebagai
-# makanan: gula-gula, jajanan manis pekat, dan gorengan kering berbasis kerupuk.
-# Sarapan tetap boleh berupa nasi uduk, bubur, roti, telur, mie, atau lontong --
-# yang disingkirkan hanya yang lazimnya dimakan sebagai camilan sore atau oleh-
-# oleh, bukan pembuka hari.
+# Bentuk sajian yang tidak pantas jadi menu sarapan: gula-gula, jajanan manis
+# pekat, dan gorengan kering berbasis kerupuk.
 BREAKFAST_UNSUITABLE_PATTERN = (
     r"^permen\b|\bdodol\b|^jenang\b|^wajik\b|^wajit\b|^geplak\b|^yangko\b"
     r"|\bes krim\b|^es mambo\b|^es sirup\b|^coklat\b|^choklat\b|\bcoklat batang\b"
@@ -82,86 +109,81 @@ BREAKFAST_UNSUITABLE_PATTERN = (
     r"|^manisan\b|^selai\b|^jam selai\b|^koya\b|^biskuit\b|^slondok\b|^rengginang\b"
 )
 
-# Volumetric Sanity Check: gramasi hasil konversi kalori harus berada di rentang
-# ini. Di bawah 50 g porsinya terlalu kecil untuk memicu rasa kenyang, di atas
-# 450 g melampaui kapasitas lambung yang nyaman untuk SATU jenis item. Item yang
-# gagal dicek didiskualifikasi dan sistem lanjut ke peringkat cosine similarity
-# berikutnya.
+# Kudapan manis dan jajanan pasar: bentuk sajian yang tidak pernah menjadi
+# komponen makan berat. Digabung ke MAIN_MEAL_UNSUITABLE_PATTERN di bawah.
+# Latar masalahnya: docs/catatan-desain.md bagian 8.
+DESSERT_PATTERN = (
+    r"\bkue\b|\bbolu\b|\bbrownies\b|\bklepon\b|\bonde-onde\b|\bonde onde\b"
+    r"|\bnagasari\b|\bcucur\b|\bserabi\b|\bsurabi\b|\bapem\b|\bbikang\b"
+    r"|\blupis\b|\bwingko\b|\bbakpia\b|\bdonat\b|\bpuding\b|\bpudding\b"
+    r"|\bcendol\b|\bkolak\b|\bbubur sumsum\b|\blapis legit\b|\bceriping\b"
+    r"|\bcarabikang\b|\bkembang goyang\b|\bbolang-baling\b|\bmoci\b|\bmochi\b"
+)
+
+# Batas Volumetric Sanity Check: gramasi hasil konversi kalori harus berada di
+# rentang ini. Item yang gagal didiskualifikasi oleh _pick_food_candidate().
 MIN_PORTION_GRAM = 50
 MAX_PORTION_GRAM = 450
 
 # --------------------------------------------------------------------------- #
 # Penetapan jumlah klaster
 # --------------------------------------------------------------------------- #
-# Jumlah klaster TIDAK ditulis tetap di kode, melainkan ditetapkan otomatis
-# dengan METODE SIKU (Elbow Method) atas fungsi biaya algoritmanya sendiri:
-# Hamming Cost berbobot untuk K-Modes dan Total Cost gabungan untuk
-# K-Prototypes. Titik sikunya dicari secara terukur, bukan ditaksir dari grafik
-# (lihat `elbow_cluster_count`), sehingga K di notebook pengujian dan K di
-# aplikasi tidak mungkin berbeda.
-#
-# ELBOW DIPAKAI SENDIRIAN UNTUK MEMILIH K. Metrik mutu -- Calinski-Harabasz
-# (K-Means), Silhouette dengan Gower Distance (K-Prototypes), dan Rasio Hamming
-# (K-Modes) -- dihitung SETELAH K ditetapkan, sebagai penilaian hasil. Kalau
-# sebuah metrik ikut memilih K, ia otomatis terlihat bagus: K-nya memang dipilih
-# supaya metrik itu setinggi mungkin. Memisahkan pemilih dari penilai membuat
-# angka yang dilaporkan bermakna sebagai bukti.
+# Rentang kandidat K yang disapu Metode Siku. Metode Siku dipakai SENDIRIAN
+# untuk memilih K; metrik mutu dihitung sesudahnya di fungsi *_performance
+# sebagai penilaian, bukan sebagai pemilih.
 CLUSTER_SEARCH_RANGE = range(2, 11)
 
-# Metrik evaluasi berbasis jarak butuh matriks antar-semua-pasangan (n x n). Di
-# atas ambang ini matriksnya dihitung pada sampel deterministik supaya kebutuhan
-# memorinya tidak tumbuh kuadratik saat dataset bertambah; hasilnya tetap sama
-# di setiap proses karena sampelnya sama.
+# Ambang jumlah baris sebelum metrik berbasis matriks jarak beralih ke sampel
+# deterministik, supaya kebutuhan memorinya tidak tumbuh kuadratik.
 EVALUATION_SAMPLE_LIMIT = 2000
 
-# K-Means makanan SENGAJA tetap 3 dan tidak ikut ditetapkan Metode Siku: ketiga
-# klaster dipetakan ke peran gizi A (tinggi karbohidrat), B (tinggi protein),
-# dan C (rendah kalori) yang dipakai MEAL_TEMPLATE untuk menyusun slot makan.
-# Jumlah klaster lain akan membuat pemetaan itu kehilangan arti.
-#
-# Perlu disebut terus terang: pada data yang sudah disiapkan aplikasi, siku
-# kurva WCSS jatuh di K = 5 (jarak ke garis 0,259), disusul K = 4 (0,247) dan
-# K = 3 (0,214). Kurvanya landai sehingga ketiganya berdekatan, tetapi K = 3
-# BUKAN titik siku. Notebook pengujian menampilkan kurva itu apa adanya dan
-# menyatakan bahwa K = 3 dipilih karena kebutuhan struktural MEAL_TEMPLATE,
-# lalu mutunya diuji pada K = 3 dengan Calinski-Harabasz Index.
-FOOD_CLUSTER_COUNT = 3
+# Fitur K-Means makanan: empat makronutrien ditambah kepadatan protein, yaitu
+# satu-satunya sumbu yang memisahkan protein ramping dari protein berlemak.
+# Lihat docs/catatan-desain.md bagian 1.
+FOOD_MACRO_COLUMNS = ["calories", "proteins", "fat", "carbohydrate"]
+FOOD_PROTEIN_DENSITY_COLUMN = "Protein_Density"
 
-# Berapa banyak titik awal yang diadu sebelum sebuah klaster ditetapkan.
-# Inisialisasi linspace SELALU ikut diadu, lalu ditambah seed 0..N-1, sehingga
-# hasilnya tetap deterministik (tidak ada seed yang diundi saat aplikasi jalan)
-# tapi tidak lagi bergantung pada satu tebakan awal.
-#
-# Pemenangnya dipilih dengan FUNGSI BIAYA algoritmanya sendiri -- ukuran yang
-# sama persis dengan yang dipakai Metode Siku. Karena pemilih titik awal dan
-# pemilih K memakai satu ukuran, menambah percobaan hanya bisa menurunkan biaya
-# di setiap K; ia tidak pernah bisa memperburuk kurva sikunya.
+# Jumlah klaster K-Means, ditetapkan tetap karena MEAL_TEMPLATES membutuhkan
+# empat peran gizi yang bisa diminta per slot. Kurva Metode Siku dan
+# perbandingan metriknya: docs/catatan-desain.md bagian 1.
+FOOD_CLUSTER_COUNT = 4
+
+# Batas jumlah menu dari satu keluarga hidangan yang boleh menumpuk di peringkat
+# atas. Keluarga hidangan = dua kata pertama nama menu (lihat dish_family()).
+# Pengukuran dampaknya: docs/catatan-desain.md bagian 6.
+DISH_FAMILY_LIMIT = 2
+
+# Banyaknya titik awal yang diadu sebelum sebuah klaster ditetapkan. Inisialisasi
+# linspace selalu ikut diadu, ditambah seed 0..N-1, sehingga hasilnya tetap
+# deterministik. Pemenangnya dipilih dengan fungsi biaya algoritmanya sendiri.
 EXERCISE_INIT_ATTEMPTS = 10
 MEMBER_INIT_ATTEMPTS = 20
 
 # --------------------------------------------------------------------------- #
+# Atribut anggota dan pembobotannya
+# --------------------------------------------------------------------------- #
+# Dipakai bersama oleh pelatihan klaster, penilaian performa, dan pemetaan
+# pengguna baru. Urutan kolom kategorikal menentukan urutan bobot di bawah.
+MEMBER_NUMERIC_COLUMNS = ["Age", "Weight (kg)", "Height (m)", "BMI"]
+MEMBER_CATEGORICAL_COLUMNS = ["Gender", "Activity_Level", "Experience_Label", "Fitness_Goal"]
+
+# Bobot tiap atribut kategorikal pada jarak K-Prototypes. Tanpa pembobotan,
+# klaster terbentuk oleh Gender sedangkan Fitness_Goal yang menjadi sasaran
+# segmentasi justru tenggelam. Sapuan bobot dan harganya:
+# docs/catatan-desain.md bagian 2.
+MEMBER_CATEGORICAL_WEIGHTS = {"Fitness_Goal": 3.0}
+
+# --------------------------------------------------------------------------- #
 # Kelayakan menu
 # --------------------------------------------------------------------------- #
-# Dulu kelayakan ditentukan DAFTAR IZIN: sebuah menu hanya boleh direkomendasikan
-# kalau namanya memuat salah satu dari 46 kata masak ("nasi", "goreng", "rebus",
-# ...). Aturan itu membuang 1.187 dari 1.586 baris, dan 684 di antaranya bukan
-# bahan mentah sama sekali -- "abon", "bakwan", "bacang", "buras", "buntil",
-# "bika ambon", "bakpia", "barongko" hilang hanya karena penulisnya tidak
-# menyebut cara masak di nama menunya.
-#
-# Sekarang dibalik menjadi DAFTAR TOLAK: sebuah menu diterima KECUALI namanya
-# menunjukkan ia bukan hidangan siap santap. Arah kesalahannya ikut berbalik --
-# dulu risikonya membuang makanan jadi, sekarang risikonya meloloskan bahan --
-# jadi daftar di bawah disusun dari pemeriksaan seluruh isi dataset, bukan
-# ditebak.
+# Kelayakan ditentukan DAFTAR TOLAK: sebuah menu diterima kecuali namanya
+# menunjukkan ia bukan hidangan siap santap. Pola-pola di bawah dipakai
+# filter_recommendable_foods(). Lihat docs/catatan-desain.md bagian 14.
 
 # 1. BUKAN PANGAN MANUSIA. Ini soal keamanan, bukan selera, dan tidak boleh
 #    dilonggarkan lewat filter kategori mana pun.
 NOT_HUMAN_FOOD_PATTERN = (
-    # Beracun. Tempe bongkrek adalah penyebab keracunan massal paling terkenal
-    # di Indonesia (asam bongkrek, tidak hilang oleh pemanasan). Gadung
-    # mengandung sianida dan dioskorin, hanya aman setelah pengolahan panjang
-    # yang tidak tercermin di nama barisnya.
+    # Beracun: bongkrek (asam bongkrek), gadung dan picung (sianida).
     r"\bbongkrek\b|\bgadung\b|\bgadeng\b|\bpicung\b"
     # Pakan ternak & ampas industri.
     r"|\bbungkil\b|\bampas\b|\bdedak\b|\bkatul\b|\bkathul\b|\bonggok\b|\bpollard\b"
@@ -171,40 +193,31 @@ NOT_HUMAN_FOOD_PATTERN = (
     r"|\bjamu\b|\boralit\b|sirup (?:batuk|obat)|\bparasetamol\b|\bpapasetamol\b"
     # Susu formula & ASI.
     r"|breastmilk|\basi\b|susu formula"
-    # --- Ditambahkan setelah penyisiran kelayakan atas 845 kandidat. ---
-    # Organ dengan bahaya kesehatan nyata, bukan sekadar tidak disukai: otak
-    # sangat tinggi kolesterol, ginjal menumpuk logam berat dan purin.
-    #
-    # Batasnya sengaja ditarik pada BAHAYA, bukan pada selera gizi. Jeroan
-    # sebagai hidangan tetap boleh -- soto jeroan, ampela, usus, dan hati
-    # adalah lauk warteg sehari-hari yang halal dan lazim; membuangnya berarti
-    # menilai pola makan pengguna, bukan menjaga keamanannya. Penyisiran
-    # kelayakan sempat menandai soto jeroan, lalu pemeriksa pembanding
-    # membantahnya dengan alasan itu, dan bantahan itu diterima.
+    # Organ dengan bahaya kesehatan nyata: otak sangat tinggi kolesterol,
+    # ginjal menumpuk logam berat dan purin.
     r"|^otak\b|\botak masakan\b|\bginjal\b"
     # Sarang burung walet: tonik mewah, bukan komponen makan harian.
     r"|^sarang burung"
 )
 
-# Non-halal & satwa dilindungi yang namanya tidak menyebut hewannya secara
-# langsung, jadi tidak tertangkap EXCLUDED_FOOD_PATTERN. Semuanya hasil
-# penyisiran kelayakan, bukan tebakan:
-#   ham, leverwost  -> olahan daging babi
-#   tinoransak      -> hidangan Minahasa yang bentuk bakunya babi
-#   kura-kura, punai, telur burung sawah -> satwa liar/dilindungi
-#   belida          -> ikan Chitala spp., dilindungi undang-undang
+# 2. NON-HALAL DAN SATWA DILINDUNGI. Disaring karena konteks pemakaian aplikasi
+#    dan status perlindungan satwanya, bukan karena nilai gizinya.
 PROTECTED_OR_HARAM_DISH_PATTERN = (
     r"^ham$|\bleverwost\b|\bsosis hati\b|\btinoransak\b"
     r"|\bkura-kura\b|\bpunai\b|\btelur burung sawah\b|\bbelida\b"
 )
 
-# 2. BAHAN, BUMBU, DAN OLAHAN SETENGAH JADI -- bukan hidangan yang disajikan.
-# Kata "segar" SENGAJA dikeluarkan dari daftar ini dan ditangani terpisah lewat
-# RAW_FRESH_PATTERN di bawah. Alasannya: pada 284 baris TKPI yang memuat kata
-# itu, sebagian besar memang bahan mentah (daun, cabai, daging babi, jeroan),
-# tetapi 26 di antaranya buah siap santap -- "Mangga segar", "Melon segar",
-# "Apel malang segar". Menyamaratakan keduanya membuang buah yang justru paling
-# pantas direkomendasikan aplikasi gizi.
+# 3. PROTEIN DIAWETKAN GARAM. Kadar natriumnya terlalu tinggi untuk dipakai
+#    sebagai lauk utama sepiring makan, walaupun proteinnya tinggi.
+SALT_CURED_PROTEIN_PATTERN = (
+    # Ikan/telur yang digarami. Ditulis sebagai pasangan kata supaya "asin"
+    # sebagai penanda rasa tidak ikut tertangkap.
+    r"\bikan\b.*\basin\b|\basin\b.*\bikan\b|\btelur\b.*\basin\b"
+    # Ikan teri kering, dendeng, jambal, dan peda -- semuanya diawetkan garam.
+    r"|\bteri\b|\bdendeng\b|\bjambal\b|\bpeda\b"
+)
+
+# 4. BAHAN, BUMBU, DAN OLAHAN SETENGAH JADI. Bukan hidangan siap santap.
 INGREDIENT_PATTERN = (
     r"\bmentah\b|\bkering\b|\bbibit\b"
     # Tepung, pati, serealia, beras.
@@ -246,37 +259,18 @@ INGREDIENT_PATTERN = (
 FRUIT_AS_INGREDIENT_PATTERN = (
     r"^nangka biji$|^biji nangka$|^nangka muda$|^gori\b"
     r"|^melinjo\b|^kulit melinjo$|^kolang[- ]kaling$|^jantung pisang"
-    # Mete adalah BIJI jambu monyet, bukan buahnya. Tanpa aturan ini ia lolos
-    # lewat kata "jambu" pada FRESH_FRUIT_PATTERN, padahal bentuk mentahnya
-    # (616 kkal, 48 g lemak per 100 g) adalah bahan, sama seperti kacang utuh
-    # lain yang sudah dikecualikan lewat "^kacang [a-z]+$".
+    # Bentuk olahan buah yang dipakai sebagai bahan, bukan disantap sebagai buah.
     r"|\bbiji jambu monyet\b|\bkacang mete\b|\bkacang mede\b"
 )
 
-# 4. Kewajaran nilai gizi. Dataset TKPI memuat galat nyata yang selama ini
-#    tersembunyi karena barisnya toh tidak lolos daftar izin: "Pilus" tercatat
-#    647 g karbohidrat per 100 g, "Bubur" 60 g lemak tapi hanya 60 kkal.
-#    Nilai seperti itu merusak Persamaan Konversi Kalori ke Gramasi -- porsinya
-#    ikut meleset berlipat -- jadi barisnya tidak boleh direkomendasikan.
+# Ambang kewajaran nilai gizi, dipakai nutrition_is_plausible(): massa makro tidak
+# boleh melebihi 100 g per 100 g bahan, dan energi tercatat harus mendekati hasil
+# hitung faktor Atwater.
 NUTRITION_MASS_LIMIT_GRAM = 100
 NUTRITION_ENERGY_TOLERANCE = 0.25
 
-# Bahan yang tidak layak direkomendasikan ke pengguna aplikasi ini, dua alasan:
-#
-# 1. Non-halal. Dataset komposisi pangan Indonesia memuat babi dan anjing;
-#    mayoritas pengguna sasaran tidak mengonsumsinya, dan menawarkannya sebagai
-#    "rekomendasi" adalah kegagalan produk, bukan sekadar selera.
-# 2. Satwa dilindungi. Penyu termasuk satwa yang dilindungi undang-undang di
-#    Indonesia, jadi aplikasi tidak boleh menganjurkan konsumsinya sama sekali.
-#
-# Disaring di prepare_foods, sebelum klasterisasi maupun TF-IDF, supaya bahan
-# ini tidak pernah muncul lewat jalur mana pun -- rekomendasi, tukar menu,
-# maupun filter kategori.
-# Beberapa bahan NABATI memakai nama hewan dan tidak boleh ikut tersaring:
-# "kacang babi" adalah kacang koro/fava, "jambu monyet" adalah jambu mete, dan
-# "pepare ular" adalah sayur. Karena itu "babi" memakai negative lookbehind
-# untuk "kacang ", sedangkan "monyet" dan "ular" sengaja TIDAK didaftarkan
-# sama sekali (dagingnya memang tidak ada di dataset ini).
+# 5. DIKECUALIKAN LEWAT DAFTAR KHUSUS. Minuman, pemanis, dan serealia mentah yang
+#    lolos pola lain tetapi tetap bukan pengisi slot makan.
 EXCLUDED_FOOD_PATTERN = (
     r"(?:(?<!kacang )\b(?:babi|khinzir|celeng|bagong|b2)\b"
     r"|\b(?:anjing|rw|penyu|tuntong|labi-labi|biawak|kelelawar|paniki|kalong|"
@@ -284,17 +278,21 @@ EXCLUDED_FOOD_PATTERN = (
 )
 
 # --------------------------------------------------------------------------- #
-# Kelayakan slot camilan
+# Kelayakan camilan
 # --------------------------------------------------------------------------- #
-# Slot camilan sebelumnya hanya dibatasi klaster kalori, sehingga "nasi",
-# "mie ayam", dan hidangan berat lain tetap muncul -- cukup dengan porsi yang
-# dikecilkan. Porsi kecil TIDAK membuat sepiring nasi menjadi camilan, jadi
-# kelayakannya sekarang ditentukan bentuk sajiannya, bukan kalorinya.
+# Dinilai dari BENTUK SAJIAN, bukan jumlah kalorinya: sepiring nasi tetap makanan
+# berat walaupun porsinya dipotong. Dipakai snack_eligibility().
 
 # Bentuk sajian yang selalu camilan, apa pun kata lain di namanya. Dipakai
 # lebih dulu supaya "kerupuk mie kuning goreng" tidak tertolak oleh kata "mie".
 SNACK_ALWAYS_PATTERN = (
     r"\b(?:kerupuk|keripik|kripik|rempeyek|peyek|emping|getuk|kecimpring|renggi|intip)\b"
+)
+
+# Gabungan pagar untuk slot makan berat (sarapan, makan siang, makan malam).
+# SNACK_ALWAYS_PATTERN ikut karena isinya memang selalu berstatus camilan.
+MAIN_MEAL_UNSUITABLE_PATTERN = (
+    BREAKFAST_UNSUITABLE_PATTERN + r"|" + DESSERT_PATTERN + r"|" + SNACK_ALWAYS_PATTERN
 )
 
 # Buah yang dimakan sebagai buah. Dipakai dua kali: sebagai kategori filter
@@ -304,70 +302,30 @@ FRUIT_PATTERN = (
     r"duwet|jambu|jeruk|kedondong|kelengkeng|kepel|kesemek|kokosan|kurma|langsat|"
     r"mangga|manggis|markisa|melon|menteng|nanas|nangka|pepaya|rambutan|salak|sawo|"
     r"semangka|sirsak|srikaya|sukun|talok|kersen|cimplukan|matuwa|jambu biji|"
-    r"buah naga|buah nona|buah merah|strawberry|stroberi|alpuket)\b"
+    r"buah naga|buah nona|buah merah|strawberry|stroberi|alpuket|"
+    # Buah daerah bernama "Buah ...", ditulis spesifik karena kata "buah" polos
+    # akan ikut menyeret sayuran seperti Buah kelor dan Kecipir buah muda.
+    r"atung|kelenting|rukam|ruruhi|tuppa|"
+    r"buah kom|buah negri|buah rotan)\b"
 )
 
-# Penanda bahan mentah yang HANYA berlaku kalau bukan buah. Dipisahkan dari
-# INGREDIENT_PATTERN karena "segar" punya dua arti di dataset TKPI:
-#
-#   "Sapi daging gemuk segar", "Udang galah segar", "Daun katuk segar"
-#       -> bahan mentah, wajib dimasak dulu, tidak boleh direkomendasikan.
-#   "Mangga segar", "Pisang kepok segar", "Apel malang segar"
-#       -> justru bentuk siap santapnya, dan camilan paling sehat yang bisa
-#          ditawarkan aplikasi gizi.
-#
-# Bug yang diperbaiki: sebelumnya "segar" ada di dalam INGREDIENT_PATTERN,
-# sehingga 30 buah segar terbuang diam-diam. Cacatnya tidak terlihat selama
-# pengujian memakai data/food_nutrition.csv, karena berkas itu memuat nama yang
-# sudah dipendekkan ("Mangga"), sedangkan tabel database yang dipakai aplikasi
-# menyimpan nama asli TKPI ("Mangga segar").
+# Penanda bahan mentah yang HANYA berlaku kalau bukan buah: "segar" menandai
+# bahan mentah pada "Sapi daging gemuk segar", tetapi menandai bentuk siap santap
+# pada "Mangga segar". Lihat docs/catatan-desain.md bagian 14.
 RAW_FRESH_PATTERN = r"\bsegar\b"
 
-# Hasil penyisiran kelayakan seluruh 866 nama menu oleh 12 peninjau, lalu setiap
-# tuduhan diadu dengan pembantah adversarial yang tugasnya MEMBANTAH. Dari 65
-# tuduhan, 51 gugur dan 14 bertahan -- yang di bawah ini.
-#
-# Pembantahan itu bagian penting metodenya: yang gugur termasuk Kluwek, Petis,
-# Taoco, Peterseli, Coklat bubuk, dan Gelatine, karena semuanya ternyata dipakai
-# sebagai komponen hidangan Indonesia yang sah. Tanpa lapis pembantah, keenamnya
-# akan ikut terhapus.
-#
-#   Minuman, bukan pengisi slot makan:
-#       Es Sirup, Lemonade, Lemon Squasih, Markisa squash, Markisa squash BD
-#   Bahan/pemanis yang tidak disantap sendirian:
-#       Kopi bagian yang larut, Melase, Setrup sirup
-#   Serealia mentah yang wajib ditanak dulu:
-#       Jagung kuning/putih giling, jagung kuning/putih pipil lama, Jali, Jawawut
-#
-# Sengaja anchored ketat. "Jagung pipil BARU" (jagung muda, bisa direbus) tetap
-# lolos, begitu juga Es krim, Es Mambo, Nasi jagung, Jagung rebus, dan Jagung
-# titi -- pola ini diuji tidak menyentuh satu pun di antaranya.
+# 6. BUKAN SATU HIDANGAN UTUH. Minuman, pemanis, dan serealia yang wajib ditanak
+#    dulu. Daftarnya disusun dari penyisiran seluruh nama menu lalu diadu dengan
+#    pembantah adversarial (docs/catatan-desain.md bagian 14).
 NOT_A_MEAL_PATTERN = (
     r"^es sirup$|^lemonade$|\bsquash\b|\bsquasih\b|^setrup\b|^kopi\b|^melase$"
     r"|^jali$|^jawawut$"
     r"|^jagung (?:kuning|putih) giling$|^jagung (?:kuning|putih) pipil lama$"
-    # Bumbu, pasta penyedap, dan bahan pelengkap yang sempat lolos. Penyisiran
-    # otomatis sebelumnya membantah sebagian di antaranya dengan alasan "komponen
-    # sah hidangan Indonesia" -- memang benar sebagai KOMPONEN, tetapi tidak satu
-    # pun disantap sendirian dalam porsi gram sebagai menu makan, dan itulah yang
-    # dilakukan aplikasi ini terhadap setiap baris yang lolos.
-    #   petis        : pasta udang/ikan, pelengkap rujak & tahu petis
-    #   taoco/tauji  : pasta kedelai fermentasi, bumbu masakan
-    #   prey         : bawang daun, aromatik
-    #   kepala susu  : krim, bahan olahan susu
-    #   asam masak   : asam jawa, 62,5 g karbohidrat/100 g -- pemberi rasa asam
+    # Bumbu dan pasta penyedap yang tidak disantap sendirian.
     r"|^petis\b|^taoco\b|^tauco\b|^tauji\b|^prey\b|^kepala susu\b|^asam masak\b"
-    # Rempah, herba, dan bahan yang hanya dipakai sebagai pelengkap. Anchor-nya
-    # ketat ke seluruh nama supaya hidangan turunannya tetap selamat:
-    # "Bagea kenari", "kue bolu kenari", "Pindang kenari masakan",
-    # "Enting-enting wijen", "Coklat Manis batang" tidak ikut tersaring.
+    # Bahan yang dipakai sebagai pelengkap, bukan sebagai hidangan.
     r"|^kluwek\b|^peterseli\b|^kucai\b|^wijen$|^kenari$|^gelatine?$|^coklat bubuk$"
-    # Sayur dan lalapan MENTAH. Semuanya memang dimakan di Indonesia, tetapi
-    # sebagai pendamping nasi dalam beberapa lembar -- bukan hidangan yang
-    # disantap sendirian 200-400 g seperti yang dihitung Persamaan Konversi
-    # Kalori ke Gramasi. INGREDIENT_PATTERN sudah memuat bentuk telanjangnya
-    # ("^terong$", "^paria$", "^kool$"), yang ditambahkan di sini varian yang
-    # lolos karena namanya bersambung.
+    # Daun dan sayuran yang tidak lazim disajikan sebagai hidangan mandiri.
     r"|^jotang\b|^krokot\b|^kerokot\b|^tespong\b|^susupan\b|^tekokak\b|^leunca\b"
     r"|^karawila\b|^rimbang\b|^putri malu\b|^purundawa\b|^andewi\b|^baligo\b|^erbis\b"
     # Anchor ke SELURUH nama (atau nama + kurung penjelas), bukan sekadar kata
@@ -377,11 +335,8 @@ NOT_A_MEAL_PATTERN = (
     r"|^mostarda\b|^kool\b|^gambas$|^gambas \(|^kentang hitam$|^bit$"
 )
 
-# Buah yang tetap diterima walaupun namanya memuat "segar". Selain FRUIT_PATTERN,
-# ditambahkan buah yang benar-benar ada di dataset tetapi belum terdaftar.
-# Bentuk NON-buah dari tanaman yang sama tidak ikut lolos karena masih tertangkap
-# aturan lain: "Jantung Pisang" oleh FRUIT_AS_INGREDIENT_PATTERN, "Bonggol
-# Pisang" oleh ^bonggol, "Tepung Pisang" oleh \btepung\b.
+# Buah yang tetap diterima walaupun namanya memuat "segar". Bentuk NON-buah dari
+# tanaman yang sama tetap gugur karena masih tertangkap aturan lain.
 FRESH_FRUIT_PATTERN = (
     FRUIT_PATTERN
     + r"|\b(?:pisang|lemon|matoa|lontar|siwalan|kawista|kranji|biwah|papaya)\b"
@@ -394,14 +349,7 @@ SNACK_FORM_PATTERN = (
     r"\b(?:gendar|pisang|kacang|jagung|ubi|singkong|talas|tales|ganyong|suweg|"
     r"belitung|bentul|batatas|gembili|ketela|tahu|tempe|oncom|telur|siomay|batagor|"
     r"pempek|nugget|perkedel|dadar)\b"
-    # Buah segar adalah camilan yang paling pantas direkomendasikan aplikasi
-    # gizi, jadi ikut dianggap layak mengisi slot camilan.
-    #
-    # Dipakai FRESH_FRUIT_PATTERN, bukan FRUIT_PATTERN, supaya buah yang baru
-    # dikenali juga ikut -- Matoa, Kawista, Lontar, Terung belanda, dan buah
-    # bernama "Buah ..." lainnya. Sebelumnya buah-buah itu lolos saringan
-    # kelayakan tetapi tetap tidak pernah muncul di slot camilan, jadi
-    # penambahannya tidak terasa oleh pengguna.
+    # Buah segar ikut dianggap layak mengisi slot camilan.
     r"|" + FRESH_FRUIT_PATTERN
 )
 
@@ -420,12 +368,8 @@ NOT_SNACK_PATTERN = (
 # Kategori bahan utama
 # --------------------------------------------------------------------------- #
 # Label -> (pola yang harus cocok, pola yang harus TIDAK cocok). Pola kedua
-# dipakai untuk memisahkan bahan yang namanya bertumpuk: "telur ayam dadar"
-# adalah telur, bukan daging ayam.
-#
-# Memilih satu kategori otomatis mencakup SELURUH menu yang berkaitan --
-# memilih "Ayam" berarti ayam goreng, ayam ampela, ayam taliwang, dan seterusnya,
-# tanpa user perlu menandai menunya satu per satu.
+# memisahkan bahan yang namanya bertumpuk, mis. "telur ayam dadar" adalah telur.
+# Dipakai food_category_mask(), yang sekaligus menjadi acuan relevansi pengujian.
 FOOD_CATEGORIES: dict[str, tuple[str, str | None]] = {
     "Ayam": (r"\bayam\b", r"\btelur\b"),
     "Ikan & Seafood": (
@@ -440,17 +384,23 @@ FOOD_CATEGORIES: dict[str, tuple[str, str | None]] = {
         None,
     ),
     "Daging Kambing": (r"\b(?:kambing|domba)\b", None),
-    "Telur": (r"\b(?:telur|dadar)\b", None),
+    # Kata "dadar" sengaja tidak ikut: keempat hidangan telur dadar di dataset
+    # sudah memuat kata "telur", sedangkan "kue dadar gulung" bukan telur.
+    "Telur": (r"\btelur\b", None),
     "Tahu, Tempe & Oncom": (r"\b(?:tahu|tempe|oncom)\b", None),
     "Sayuran": (
         r"\b(?:sayur|sayuran|bayam|kangkung|buncis|wortel|terong|terung|taoge|toge|selada|"
         r"paria|cap cai|karedok|gado-gado|gado|urap|pecel|asinan|ketoprak|pakis|kool|lebui|"
-        r"terubuk|umbut|kohu-kohu|ndusuk|garu|anyang|ares|kaparende|lamtoro|jengkol)\b",
+        # "kelor" ada di sini, BUKAN di FRUIT_PATTERN: "Buah kelor" adalah polong
+        # kelor yang dimasak sebagai sayur, meski namanya diawali kata "buah".
+        r"terubuk|umbut|kohu-kohu|ndusuk|garu|anyang|ares|kaparende|lamtoro|jengkol|kelor)\b",
         None,
     ),
     "Kacang-kacangan": (r"\bkacang\b", None),
     "Nasi & Olahan Beras": (
-        r"\b(?:nasi|bubur|lontong|intip|gendar|tim|pundut|ketupat|renggi)\b",
+        # "beras" ikut supaya olahan beras yang namanya tidak memuat "nasi" tetap
+        # terjangkau. Bahan mentah sudah tersaring lebih dulu di prepare_foods().
+        r"\b(?:nasi|beras|bubur|lontong|intip|gendar|tim|pundut|ketupat|renggi)\b",
         None,
     ),
     "Mie & Bihun": (r"\b(?:mie|mi|bihun|kwetiau|pangsit|golosor)\b", None),
@@ -472,35 +422,64 @@ FOOD_CATEGORIES: dict[str, tuple[str, str | None]] = {
 # mis. "tinoransak masakan").
 OTHER_CATEGORY = "Lainnya"
 
-# Pilihan preferensi yang ditawarkan ke pengguna, dipersempit ke SUMBER PROTEIN.
-#
-# Sebelumnya keenam belas kategori disodorkan sekaligus, termasuk yang sebenarnya
-# bukan pilihan bermakna bagi pengguna: "Nasi & Olahan Beras", "Mie & Bihun",
-# dan "Kerupuk & Keripik" adalah sumber karbohidrat atau pelengkap yang memang
-# sudah diatur MEAL_TEMPLATE lewat klaster A/B/C. Yang benar-benar ingin dipilih
-# pengguna adalah lauknya -- itulah yang menentukan rasa sebuah menu.
-#
-# Kunci = label yang tampil, nilai = nama kategori di FOOD_CATEGORIES.
-PROTEIN_PREFERENCE_CATEGORIES: dict[str, str] = {
-    "Ayam": "Ayam",
-    "Daging Sapi": "Daging Sapi",
-    "Daging Kambing": "Daging Kambing",
-    "Telur": "Telur",
-    "Ikan & Seafood": "Ikan & Seafood",
-    "Olahan Kedelai": "Tahu, Tempe & Oncom",
-    "Kacang-kacangan": "Kacang-kacangan",
-    "Sayur": "Sayuran",
+# Pilihan preferensi sumber protein yang ditawarkan ke pengguna.
+# Kunci = label yang tampil, nilai = satu atau lebih nama kategori di FOOD_CATEGORIES.
+PROTEIN_PREFERENCE_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "Ayam": ("Ayam",),
+    # Sapi dan kambing digabung: peran gizinya sama, dan "Daging Kambing"
+    # sendirian hanya punya satu menu sehingga tidak pernah bisa mengisi 8 slot.
+    "Olahan Daging": ("Daging Sapi", "Daging Kambing"),
+    "Telur": ("Telur",),
+    "Ikan & Seafood": ("Ikan & Seafood",),
+    "Olahan Kedelai": ("Tahu, Tempe & Oncom",),
+    "Kacang-kacangan": ("Kacang-kacangan",),
+    "Sayur": ("Sayuran",),
+}
+
+# Pilihan preferensi sumber karbohidrat, dipilih terpisah dari sumber protein.
+# Peran gizi menentukan berapa banyak karbohidrat yang masuk, bukan yang mana.
+CARB_PREFERENCE_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "Nasi & Olahan Beras": ("Nasi & Olahan Beras",),
+    "Mie & Bihun": ("Mie & Bihun",),
+    "Umbi & Singkong": ("Umbi & Singkong",),
+    "Jagung": ("Jagung",),
+    "Pisang & Olahannya": ("Pisang & Olahannya",),
+    "Buah": ("Buah",),
 }
 
 
-def protein_preference_options(foods: pd.DataFrame, meal_slot: str | None = None) -> dict[str, str]:
-    """Label preferensi yang benar-benar punya menu di dataset (atau di slot itu)."""
+def _preference_options(
+    daftar: dict[str, tuple[str, ...]],
+    foods: pd.DataFrame,
+    meal_slot: str | None = None,
+) -> dict[str, tuple[str, ...]]:
+    """Saring daftar preferensi ke yang benar-benar punya menu.
+
+    Sebuah label ditawarkan bila SETIDAKNYA SATU kategori di baliknya punya isi.
+    Kategori yang kosong dibuang dari tuple-nya, jadi "Olahan Daging" tetap
+    tampil selama salah satu dari sapi atau kambing masih ada isinya.
+    """
     tersedia = set(available_food_categories(foods, meal_slot=meal_slot))
-    return {
-        label: kategori
-        for label, kategori in PROTEIN_PREFERENCE_CATEGORIES.items()
-        if kategori in tersedia
-    }
+    hasil: dict[str, tuple[str, ...]] = {}
+    for label, kategori in daftar.items():
+        ada = tuple(k for k in kategori if k in tersedia)
+        if ada:
+            hasil[label] = ada
+    return hasil
+
+
+def protein_preference_options(
+    foods: pd.DataFrame, meal_slot: str | None = None
+) -> dict[str, tuple[str, ...]]:
+    """Label sumber protein yang benar-benar punya menu di dataset (atau di slot itu)."""
+    return _preference_options(PROTEIN_PREFERENCE_CATEGORIES, foods, meal_slot)
+
+
+def carb_preference_options(
+    foods: pd.DataFrame, meal_slot: str | None = None
+) -> dict[str, tuple[str, ...]]:
+    """Label sumber karbohidrat yang benar-benar punya menu di dataset."""
+    return _preference_options(CARB_PREFERENCE_CATEGORIES, foods, meal_slot)
 
 IMAGE_CHECK_MAX_WORKERS = 20
 
@@ -509,6 +488,63 @@ LEVEL_ALLOWLIST = {
     "Intermediate": {"Beginner", "Intermediate"},
     "Expert": {"Beginner", "Intermediate", "Expert"},
 }
+
+# --------------------------------------------------------------------------- #
+# Penyusunan program latihan
+# --------------------------------------------------------------------------- #
+# Komposisi jenis latihan per tujuan kebugaran, diambil berurutan; bila satu jenis
+# kehabisan kandidat, sisanya jatuh ke jenis berikutnya. Dasarnya nilai MET pada
+# EXERCISE_MET. Lihat docs/catatan-desain.md bagian 10.
+EXERCISE_TYPE_PLAN = {
+    "Lose Weight": [("Cardio", 1), ("Plyometrics", 1), ("Strength", 3)],
+    "Maintain Weight": [("Plyometrics", 1), ("Strength", 4)],
+    "Gain Weight": [("Strength", 4), ("Powerlifting", 1)],
+}
+
+# Urutan prioritas alat menurut level pengalaman, disusun menurut keamanan: mesin
+# didahulukan untuk pemula karena jalur gerakannya terpandu, barbel bebas untuk
+# expert. Dipakai _rank_exercise_candidates() sebagai kunci pengurut ketiga.
+EQUIPMENT_PRIORITY = {
+    "Beginner": ["Body Only", "Machine", "Dumbbell", "Bands", "Cable"],
+    "Intermediate": ["Dumbbell", "Body Only", "Cable", "Machine", "Barbell", "Bands"],
+    "Expert": ["Barbell", "Dumbbell", "Kettlebells", "Cable", "Body Only", "Machine",
+               "E-Z Curl Bar", "Medicine Ball"],
+}
+
+# Tangga pelonggaran level. Lapis pertama adalah level pengguna sendiri; bila
+# kolamnya kurang, naik satu lapis dan latihan tambahan itu ditandai pada kolom
+# NEEDS_SUPERVISION_COLUMN. Lihat docs/catatan-desain.md bagian 11.
+EXERCISE_LEVEL_LADDER = {
+    "Beginner": [{"Beginner"}, {"Intermediate"}, {"Expert"}],
+    "Intermediate": [{"Beginner", "Intermediate"}, {"Expert"}],
+    "Expert": [{"Beginner", "Intermediate", "Expert"}],
+}
+
+# Nama kolom penanda pada hasil rekomendasi: True bila latihan itu diambil dari
+# lapis level di atas level pengguna.
+NEEDS_SUPERVISION_COLUMN = "Needs_Supervision"
+
+# Jumlah latihan bawaan menurut level pengalaman dan tingkat aktivitas. Hanya nilai
+# awal; pengguna tetap boleh menggesernya dalam rentang MIN..MAX_EXERCISE_COUNT.
+# Alasan rentangnya: docs/catatan-desain.md bagian 12.
+DEFAULT_EXERCISE_COUNT = {
+    ("Beginner", "Low"): 3, ("Beginner", "Medium"): 3,
+    ("Beginner", "High"): 4, ("Beginner", "Very High"): 4,
+    ("Intermediate", "Low"): 4, ("Intermediate", "Medium"): 4,
+    ("Intermediate", "High"): 5, ("Intermediate", "Very High"): 6,
+    ("Expert", "Low"): 5, ("Expert", "Medium"): 5,
+    ("Expert", "High"): 6, ("Expert", "Very High"): 6,
+}
+
+MIN_EXERCISE_COUNT, MAX_EXERCISE_COUNT = 3, 8
+
+
+def default_exercise_count(experience_level: str, activity_level: str) -> int:
+    """Jumlah latihan yang disarankan sistem, sebelum pengguna mengubahnya."""
+    return DEFAULT_EXERCISE_COUNT.get(
+        (str(experience_level), str(activity_level)),
+        DEFAULT_EXERCISE_COUNT[("Intermediate", "Medium")],
+    )
 
 TARGET_MUSCLE_GROUPS = {
     "Dada": {"Chest"},
@@ -537,13 +573,8 @@ TRAINING_PARAMETERS = {
 # Estimasi kalori terbakar
 # --------------------------------------------------------------------------- #
 # Nilai MET (Metabolic Equivalent of Task) per jenis latihan, mengacu pada
-# Compendium of Physical Activities. Dipakai untuk menaksir kalori yang terbakar
-# saat pengguna mengklaim sebuah latihan sudah dikerjakan:
-#
+# Compendium of Physical Activities. Dipakai estimate_exercise_calories():
 #     kkal = MET x 3,5 x berat badan (kg) / 200 x durasi (menit)
-#
-# Hasilnya SELALU perkiraan -- tidak ada sensor detak jantung di aplikasi ini --
-# jadi angkanya ditampilkan dengan label "perkiraan", bukan sebagai pengukuran.
 EXERCISE_MET = {
     "Strength": 5.0,
     "Powerlifting": 6.0,
@@ -714,7 +745,12 @@ def ensure_dataset_rows(members: pd.DataFrame, foods: pd.DataFrame, exercises: p
 
 
 def clean_members(df: pd.DataFrame) -> pd.DataFrame:
-    """Bersihkan data anggota gym, seragamkan label, lalu bubuhkan hasil klaster K-Prototypes."""
+    """Bersihkan data anggota gym, seragamkan label, lalu bubuhkan hasil klaster K-Prototypes.
+
+    Kolom `User_Cluster` yang dihasilkan adalah keluaran SEGMENTASI dan ditampilkan
+    sebagai label segmen; ia tidak dipakai menyusun rekomendasi menu maupun latihan.
+    Alasannya: docs/catatan-desain.md bagian 9.
+    """
     cleaned = df.copy()
     cleaned["Experience_Label"] = cleaned["Experience_Level"].apply(normalize_experience_level)
     cleaned["Fitness_Goal"] = cleaned["Fitness_Goal"].apply(normalize_goal)
@@ -741,23 +777,13 @@ def _evaluation_sample_index(size: int) -> np.ndarray | None:
 # --------------------------------------------------------------------------- #
 # Pencarian klaster -- Metode Siku (Elbow Method)
 # --------------------------------------------------------------------------- #
-# K DITETAPKAN OLEH SIKU KURVA BIAYA, TITIK AWAL OLEH BIAYA YANG SAMA. Untuk
-# setiap kandidat K, sekumpulan titik awal diadu dan yang biayanya paling rendah
+# Untuk setiap kandidat K, sekumpulan titik awal diadu dan yang biayanya terendah
 # yang dipakai; barisan biaya-terbaik-per-K itulah kurva yang dicari sikunya.
-# Kedua keputusan memakai satu ukuran -- fungsi biaya yang memang diminimalkan
-# algoritmanya -- sehingga menambah percobaan titik awal hanya bisa menurunkan
-# kurva, tidak pernah merusaknya.
-#
-# Metrik mutu tidak ikut campur di sini. Calinski-Harabasz, Silhouette-Gower,
-# dan Rasio Hamming dihitung SESUDAH K ditetapkan, di fungsi *_performance.
 def elbow_distances(k_values, costs) -> np.ndarray:
     """Jarak tiap titik kurva biaya ke garis lurus yang menghubungkan kedua ujungnya.
 
-    Inilah cara Metode Siku dihitung tanpa menaksir grafik dengan mata. Kedua
-    sumbu dinormalkan ke 0..1 lebih dulu supaya hasilnya tidak bergantung pada
-    satuan biaya (WCSS puluhan, Hamming Cost ribuan). Titik yang paling jauh
-    dari garis lurus itu adalah tikungan paling tajam -- di situlah tambahan
-    satu klaster berhenti memberi penurunan biaya yang sepadan.
+    Kedua sumbu dinormalkan ke 0..1 lebih dulu supaya hasilnya tidak bergantung pada
+    satuan biaya. Titik terjauh dari garis itulah tikungan paling tajam.
     """
     k = np.asarray(list(k_values), dtype=float)
     cost = np.asarray(list(costs), dtype=float)
@@ -908,8 +934,8 @@ def optimal_exercise_clusters(categorical: pd.DataFrame) -> int:
 
 def fit_member_cluster_model(members: pd.DataFrame, n_clusters: int | None = None) -> tuple[np.ndarray, dict]:
     """Latih K-Prototypes pada data anggota; balas label plus modus dan scaler untuk memetakan user baru."""
-    numeric_columns = ["Age", "Weight (kg)", "Height (m)", "BMI"]
-    categorical_columns = ["Gender", "Activity_Level", "Experience_Label", "Fitness_Goal"]
+    numeric_columns = MEMBER_NUMERIC_COLUMNS
+    categorical_columns = MEMBER_CATEGORICAL_COLUMNS
     numeric, categorical, scaler = member_feature_matrices(members, numeric_columns, categorical_columns)
     # Pencarian mengembalikan sekalian label dan modus pemenangnya, jadi tidak
     # perlu melatih ulang setelah K ketemu.
@@ -937,24 +963,11 @@ def prepare_foods(df: pd.DataFrame) -> pd.DataFrame:
     foods["Food_Cluster"] = assign_food_clusters(foods)
     foods["Is_Snack"] = snack_eligibility(foods)
     foods["Food_Category"] = primary_food_category(foods)
-    # Kategori ikut masuk ke teks CBF supaya kata kunci kategori yang dipilih
-    # user ("ayam", "ikan") punya bobot di ruang TF-IDF, bukan cuma dipakai
-    # sebagai filter di luar model.
-    foods["CBF_Text"] = (
-        foods["name"].fillna("")
-        + " calories "
-        + foods["calories"].round().astype(str)
-        + " protein "
-        + foods["proteins"].round().astype(str)
-        + " fat "
-        + foods["fat"].round().astype(str)
-        + " carbohydrate "
-        + foods["carbohydrate"].round().astype(str)
-        + " cluster "
-        + foods["Food_Cluster"]
-        + " kategori "
-        + foods["Food_Category"].str.lower()
-    )
+    # Teks CBF berisi NAMA MENU SAJA. Nilai gizi, label klaster, dan kategori
+    # sengaja tidak ikut: angka menjadi token yang mustahil dicocokkan, token yang
+    # dimiliki semua baris ber-IDF nol, dan kategori adalah kebocoran label karena
+    # ia juga dipakai menilai relevansi. Lihat docs/catatan-desain.md bagian 4.
+    foods["CBF_Text"] = foods["name"].fillna("").astype(str)
     vectorizer = TfidfVectorizer(stop_words="english")
     tfidf_matrix = vectorizer.fit_transform(foods["CBF_Text"])
     foods.attrs["food_tfidf_model"] = {"vectorizer": vectorizer, "tfidf_matrix": tfidf_matrix}
@@ -969,9 +982,8 @@ def _lowercase_names(foods: pd.DataFrame) -> pd.Series:
 def snack_eligibility(foods: pd.DataFrame) -> pd.Series:
     """True untuk item yang pantas disajikan di slot camilan.
 
-    Penilaiannya berdasarkan BENTUK SAJIAN, bukan jumlah kalorinya. Sepiring
-    nasi tetap makanan berat walaupun porsinya dipotong jadi 80 gram, jadi
-    membatasi slot camilan lewat klaster kalori saja tidak cukup.
+    Dinilai dari BENTUK SAJIAN, bukan jumlah kalorinya: sepiring nasi tetap makanan
+    berat walaupun porsinya dipotong jadi 80 gram.
     """
     names = _lowercase_names(foods)
     always = names.str.contains(SNACK_ALWAYS_PATTERN, regex=True, na=False)
@@ -1025,6 +1037,21 @@ def primary_food_category(foods: pd.DataFrame) -> pd.Series:
     return result
 
 
+@lru_cache(maxsize=2048)
+def food_categories_for_name(name: str) -> tuple[str, ...]:
+    """SELURUH kategori yang dimiliki satu menu, bukan hanya yang menang prioritas.
+
+    Memakai `food_category_mask()`, definisi yang sama yang dipakai `_rank_foods()`
+    untuk menyaring, sehingga chip yang tampil di kartu menu sejalan dengan kategori
+    yang benar-benar dipakai sistem. Hasilnya di-cache karena dipanggil per kartu.
+    """
+    frame = pd.DataFrame({"name": [name or ""]})
+    labels = tuple(
+        label for label in FOOD_CATEGORIES if bool(food_category_mask(frame, label).iloc[0])
+    )
+    return labels or (OTHER_CATEGORY,)
+
+
 def available_food_categories(foods: pd.DataFrame, *, meal_slot: str | None = None) -> list[str]:
     """Kategori yang benar-benar punya isi di dataset (opsional: untuk satu slot).
 
@@ -1047,11 +1074,8 @@ def available_food_categories(foods: pd.DataFrame, *, meal_slot: str | None = No
 def slot_calorie_quota(target_calories: float) -> dict[str, int]:
     """Kuota kalori tiap slot = kebutuhan energi harian x proporsi slot.
 
-    Nilainya dibulatkan ke bilangan bulat dengan metode sisa terbesar sehingga
-    penjumlahan keempat slot PERSIS sama dengan target kalori harian. Membulatkan
-    tiap slot sendiri-sendiri membuat totalnya meleset 1-2 kkal (mis. target
-    2.322 kkal menghasilkan 2.321), dan selisih itu langsung terlihat di kartu
-    Target Kalori Harian yang membandingkan konsumsi dengan targetnya.
+    Dibulatkan dengan metode sisa terbesar sehingga penjumlahan keempat slot persis
+    sama dengan target kalori harian.
     """
     total = int(round(float(target_calories)))
     exact = {slot: total * ratio for slot, ratio in MEAL_DISTRIBUTION.items()}
@@ -1083,15 +1107,9 @@ def portion_is_realistic(portion_gram: float | None) -> bool:
 def nutrition_is_plausible(foods: pd.DataFrame) -> pd.Series:
     """True untuk baris yang nilai gizinya mungkin secara fisik.
 
-    Dua pemeriksaan:
-
-    1. Jumlah protein + lemak + karbohidrat tidak boleh melebihi 100 g per
-       100 g bahan -- massanya tidak bisa lebih besar dari bahannya sendiri.
-    2. Energi tercatat harus mendekati hasil hitung faktor Atwater
-       (4-9-4 kkal/g). Selisih besar berarti salah satu angkanya keliru.
-
-    Barisnya dibuang, bukan diperbaiki: menebak mana yang benar antara energi
-    dan makro sama saja mengarang data.
+    Dua pemeriksaan: massa protein + lemak + karbohidrat tidak melebihi 100 g per
+    100 g bahan, dan energi tercatat mendekati hasil hitung faktor Atwater (4-9-4).
+    Baris yang gagal dibuang, bukan diperbaiki.
     """
     protein = pd.to_numeric(foods["proteins"], errors="coerce").fillna(0)
     fat = pd.to_numeric(foods["fat"], errors="coerce").fillna(0)
@@ -1106,13 +1124,18 @@ def nutrition_is_plausible(foods: pd.DataFrame) -> pd.Series:
 
 
 def filter_recommendable_foods(foods: pd.DataFrame) -> pd.DataFrame:
-    """Buang entri yang bukan hidangan siap santap (bahan mentah, non-pangan, gizi tidak masuk akal)."""
+    """Buang entri yang bukan hidangan siap santap, lalu bubuhkan status gambar.
+
+    Delapan aturan penolakan beserta jumlah baris yang terkena:
+    docs/catatan-desain.md bagian 14.
+    """
     names = foods["name"].fillna("").astype(str).str.lower().str.strip()
     is_not_human_food = names.str.contains(NOT_HUMAN_FOOD_PATTERN, regex=True, na=False)
     is_ingredient = names.str.contains(INGREDIENT_PATTERN, regex=True, na=False)
     is_fruit_ingredient = names.str.contains(FRUIT_AS_INGREDIENT_PATTERN, regex=True, na=False)
     is_excluded = names.str.contains(EXCLUDED_FOOD_PATTERN, regex=True, na=False)
     is_protected = names.str.contains(PROTECTED_OR_HARAM_DISH_PATTERN, regex=True, na=False)
+    is_salt_cured = names.str.contains(SALT_CURED_PROTEIN_PATTERN, regex=True, na=False)
     # "segar" menandai bahan mentah KECUALI pada buah, yang justru siap santap
     # dalam bentuk itu. Pengecualiannya hanya menetralkan aturan "segar";
     # aturan lain tetap berlaku penuh, jadi "Jantung Pisang segar" tetap gugur.
@@ -1127,28 +1150,14 @@ def filter_recommendable_foods(foods: pd.DataFrame) -> pd.DataFrame:
         & ~is_fruit_ingredient
         & ~is_excluded
         & ~is_protected
+        & ~is_salt_cured
         & ~is_not_a_meal
         & nutrition_is_plausible(foods)
     )
 
-    # Ketersediaan gambar TIDAK lagi menentukan apakah sebuah menu boleh
-    # direkomendasikan. Dulu menu yang gambarnya tidak bisa dimuat langsung
-    # dibuang, dan itu menimbulkan tiga masalah sekaligus:
-    #
-    #   1. Menu hilang karena alasan yang tidak ada hubungannya dengan gizi.
-    #      Tautan CDN pihak ketiga lapuk; 63 dari 260 menu sudah kehilangan
-    #      gambarnya, dan angka itu terus bertambah.
-    #   2. Jumlah menu jadi tidak bisa direproduksi. Pemeriksaannya lewat
-    #      jaringan, jadi hasilnya bergantung pada koneksi dan pembatasan laju
-    #      host saat itu -- laporan penelitian bisa menyebut angka berbeda tiap
-    #      kali dijalankan.
-    #   3. Pemuatan pertama di mesin baru makan ~33 detik hanya untuk memeriksa
-    #      260 URL, dan berkas cache-nya tidak ikut dibawa saat repositori
-    #      dipindah.
-    #
-    # Sekarang menu tanpa gambar tetap direkomendasikan dan kartunya memakai
-    # gambar pengganti. Status gambar dibaca dari CACHE saja -- tanpa satu pun
-    # permintaan jaringan saat start.
+    # Ketersediaan gambar tidak menentukan apakah sebuah menu boleh direkomendasikan.
+    # Statusnya dibaca dari cache saja, tanpa permintaan jaringan saat start; menu
+    # tanpa gambar tetap muncul dengan gambar pengganti.
     candidates = foods[passes_name_filter].copy()
     images = candidates["image"].fillna("").astype(str)
     candidates["Has_Image"] = pd.Series(
@@ -1160,11 +1169,7 @@ def filter_recommendable_foods(foods: pd.DataFrame) -> pd.DataFrame:
 def image_status_from_cache(urls: list[str]) -> list[bool]:
     """Status gambar dari cache di disk. TIDAK menyentuh jaringan.
 
-    URL yang belum pernah diperiksa dianggap bisa ditampilkan (optimistis):
-    lebih baik mencoba memuat gambar yang ternyata mati -- kartunya toh sudah
-    punya latar pengganti -- daripada menahan start-up demi memastikannya.
-    Pemeriksaan sungguhan dilakukan di luar aplikasi oleh
-    schema_data/repair_food_images.py, yang sekaligus mengganti tautan mati.
+    URL yang belum pernah diperiksa dianggap bisa ditampilkan (optimistis).
     """
     if not urls:
         return []
@@ -1176,31 +1181,23 @@ def image_status_from_cache(urls: list[str]) -> list[bool]:
 
 
 def check_image_urls_concurrently(urls: list[str], max_workers: int = IMAGE_CHECK_MAX_WORKERS) -> list[bool]:
-    """Run image_url_is_displayable over many URLs in parallel.
+    """Periksa banyak URL gambar sekaligus memakai thread pool.
 
-    Uses a thread pool because the work is network I/O bound (HEAD/GET
-    requests), so threads give a near-linear speedup despite the GIL.
-    executor.map preserves input order, so the result list lines up
-    with `urls` exactly like the old sequential `.map()` call did.
+    Hasilnya disimpan ke cache disk supaya restart berikutnya tidak menembak ulang
+    seluruh URL. URL yang kena pembatasan laju tidak ikut disimpan.
     """
     if not urls:
         return []
 
-    # lru_cache di image_url_is_displayable cuma hidup selama proses, jadi tiap
-    # `streamlit run` diulang dari nol -- ratusan request HTTP lagi, dan itulah
-    # yang bikin tampilan pertama lama. Hasilnya disimpan ke disk supaya restart
-    # berikutnya nyaris instan. Cache ini murni optimasi: kalau filenya hilang,
-    # rusak, atau kedaluwarsa, hasilnya tetap benar -- cuma balik lambat lagi.
+    # Hasil pemeriksaan disimpan ke disk supaya restart berikutnya tidak menembak
+    # ratusan URL lagi. Cache ini murni optimasi: hasilnya tetap benar tanpanya.
     cached = _load_image_cache()
     pending = [url for url in dict.fromkeys(urls) if url not in cached]
     if pending:
         workers = max(1, min(max_workers, len(pending)))
         with ThreadPoolExecutor(max_workers=workers) as executor:
             cached.update(zip(pending, executor.map(image_url_is_displayable, pending)))
-        # URL yang tadi kena pembatasan laju TIDAK ikut disimpan: jawabannya
-        # cuma dugaan optimistis, dan menuliskannya ke cache akan mengunci
-        # dugaan itu selama masa berlaku cache (7 hari). Dibiarkan kosong
-        # supaya diperiksa ulang -- saat itu host biasanya sudah tidak sibuk.
+        # URL yang kena pembatasan laju tidak ikut disimpan supaya diperiksa ulang.
         layak_disimpan = {url: ok for url, ok in cached.items() if url not in _THROTTLED_URLS}
         _save_image_cache(layak_disimpan)
     return [cached[url] for url in urls]
@@ -1208,12 +1205,8 @@ def check_image_urls_concurrently(urls: list[str], max_workers: int = IMAGE_CHEC
 
 IMAGE_CACHE_PATH = DATA_DIR / ".image_check_cache.json"
 
-# 90 hari, bukan 7. Cache ini tidak lagi menjadi gerbang yang menentukan menu
-# mana yang boleh muncul -- ia hanya menentukan kartu mana yang langsung memakai
-# gambar pengganti. Masa berlaku pendek dulu masuk akal saat salah tebak berarti
-# menu hilang; sekarang salah tebak paling banter menampilkan gambar pengganti
-# pada menu yang sebetulnya punya gambar, dan itu diperbaiki saat
-# repair_food_images.py dijalankan.
+# Masa berlaku cache status gambar. Salah tebak paling banter menampilkan gambar
+# pengganti pada menu yang sebetulnya punya gambar.
 IMAGE_CACHE_TTL_SECONDS = 90 * 24 * 60 * 60
 
 
@@ -1273,22 +1266,13 @@ def image_url_is_displayable(url: str) -> bool:
         if exc.code in {403, 405}:
             return image_url_is_displayable_with_get(url)
         if exc.code in THROTTLED_STATUS:
-            # Pembatasan laju TIDAK berarti gambarnya mati. Memeriksa 260 URL
-            # sekaligus dengan 20 worker membuat host seperti
-            # upload.wikimedia.org membalas 429, dan menganggapnya "mati" berarti
-            # menu yang gambarnya baik-baik saja terbuang -- berbeda-beda tiap
-            # eksekusi, sehingga jumlah menu pada laporan penelitian ikut
-            # berubah tanpa datanya berubah. Diperlakukan optimistis: server
-            # terbukti hidup, jadi menunya dipertahankan.
+            # Pembatasan laju bukan tanda gambarnya mati; dijawab optimistis dan
+            # ditandai supaya hasilnya tidak ikut disimpan ke cache.
             _THROTTLED_URLS.add(url)
             return True
         return False
     except (OSError, HTTPException, ValueError):
-        # OSError sudah mencakup URLError, TimeoutError, DAN ssl.SSLError.
-        # Yang terakhir ini penting: ssl.SSLWantReadError sempat lolos dari
-        # daftar lama (dia bukan turunan URLError) dan menjatuhkan seluruh
-        # app saat cold load. Gambar yang gagal dicek cukup dianggap tidak
-        # bisa ditampilkan -- jangan sampai satu URL bermasalah bikin crash.
+        # Galat jaringan lain diperlakukan sebagai gambar tidak bisa ditampilkan.
         return False
 
 
@@ -1309,26 +1293,57 @@ def image_response_is_valid(response) -> bool:
     return 200 <= status < 400 and content_type.startswith("image/")
 
 
+def food_cluster_features(foods: pd.DataFrame) -> np.ndarray:
+    """Matriks fitur K-Means makanan: empat makro + kepadatan protein, diskalakan MinMax.
+
+    Dipakai bersama oleh pembentuk klaster dan penilai performa, supaya angka yang
+    dilaporkan berasal dari ruang fitur yang sama persis dengan yang membentuk
+    klasternya.
+    """
+    work = foods[FOOD_MACRO_COLUMNS].copy()
+    # Kalori nol sudah disaring prepare_foods(), tapi penjagaan ini membuat fungsi
+    # tetap aman dipanggil dari notebook pengujian atas DataFrame mentah.
+    kalori = work["calories"].replace(0, np.nan)
+    work[FOOD_PROTEIN_DENSITY_COLUMN] = (work["proteins"] / kalori * 100).fillna(0)
+    return MinMaxScaler().fit_transform(work)
+
+
 def assign_food_clusters(foods: pd.DataFrame) -> pd.Series:
-    """Klasterkan menu dengan K-Means lalu beri label A (karbo), B (protein), C (rendah kalori)."""
-    features = foods[["calories", "proteins", "fat", "carbohydrate"]]
-    scaled = MinMaxScaler().fit_transform(features)
+    """Klasterkan menu dengan K-Means lalu beri satu peran gizi pada tiap klaster.
+
+    Perannya: A tinggi karbohidrat, B protein ramping, C rendah kalori,
+    D protein berlemak. Pemetaannya total dan gagal keras bila jumlah peran tidak
+    sama dengan jumlah klaster.
+    """
+    scaled = food_cluster_features(foods)
     labels = KMeans(n_clusters=FOOD_CLUSTER_COUNT, random_state=42, n_init=10).fit_predict(scaled)
-    clustered = foods.assign(_cluster=labels)
-    summaries = clustered.groupby("_cluster")[["calories", "proteins", "fat", "carbohydrate"]].mean()
 
-    low_cal_cluster = summaries["calories"].idxmin()
-    remaining_for_carb = [cluster for cluster in summaries.index if cluster != low_cal_cluster]
-    carb_cluster = summaries.loc[remaining_for_carb, "carbohydrate"].idxmax() if remaining_for_carb else low_cal_cluster
-    remaining = [cluster for cluster in summaries.index if cluster not in {carb_cluster, low_cal_cluster}]
-    protein_cluster = summaries.loc[remaining, "proteins"].idxmax() if remaining else carb_cluster
+    ringkas = foods.assign(_cluster=labels).groupby("_cluster")[FOOD_MACRO_COLUMNS].mean()
+    ringkas[FOOD_PROTEIN_DENSITY_COLUMN] = ringkas["proteins"] / ringkas["calories"] * 100
+    if len(ringkas) != FOOD_CLUSTER_COUNT:
+        raise RuntimeError(
+            f"K-Means menghasilkan {len(ringkas)} klaster, bukan {FOOD_CLUSTER_COUNT}; "
+            "peran gizi tidak bisa dipetakan tanpa menebak."
+        )
 
-    cluster_map = {
-        carb_cluster: "A",
-        protein_cluster: "B",
-        low_cal_cluster: "C",
+    # Urutan penetapan dari yang paling tidak ambigu ke yang paling halus. Dua
+    # klaster terakhir dibedakan oleh KEPADATAN protein, bukan protein mutlak.
+    rendah_kalori = ringkas["calories"].idxmin()
+    sisa = [k for k in ringkas.index if k != rendah_kalori]
+    karbohidrat = ringkas.loc[sisa, "carbohydrate"].idxmax()
+    sisa = [k for k in sisa if k != karbohidrat]
+    protein_ramping = ringkas.loc[sisa, FOOD_PROTEIN_DENSITY_COLUMN].idxmax()
+    protein_berlemak = next(k for k in sisa if k != protein_ramping)
+
+    peran = {
+        karbohidrat: "A",
+        protein_ramping: "B",
+        rendah_kalori: "C",
+        protein_berlemak: "D",
     }
-    return pd.Series(labels).map(cluster_map).fillna("B")
+    if len(peran) != FOOD_CLUSTER_COUNT:
+        raise RuntimeError("Satu klaster mendapat lebih dari satu peran gizi; pemetaan tidak sah.")
+    return pd.Series(labels).map(peran)
 
 
 def prepare_exercises(df: pd.DataFrame) -> pd.DataFrame:
@@ -1341,21 +1356,11 @@ def prepare_exercises(df: pd.DataFrame) -> pd.DataFrame:
     for column in required:
         exercises[column] = exercises[column].astype(str)
     exercises["Exercise_Cluster"] = assign_exercise_clusters(exercises)
-    exercises["CBF_Text"] = (
-        exercises["Title"]
-        + " "
-        + exercises["Desc"]
-        + " "
-        + exercises["Type"]
-        + " "
-        + exercises["BodyPart"]
-        + " "
-        + exercises["Equipment"]
-        + " "
-        + exercises["Level"]
-        + " cluster "
-        + exercises["Exercise_Cluster"].astype(str)
-    )
+    # Teks CBF latihan berisi JUDUL + DESKRIPSI SAJA. Type, BodyPart, Equipment, dan
+    # Level sudah bekerja sebagai penyaring sehingga ber-IDF nol di dalam kolam, dan
+    # nilainya pecah jadi token yang bertabrakan dengan prosa deskripsi.
+    # Lihat docs/catatan-desain.md bagian 5.
+    exercises["CBF_Text"] = exercises["Title"] + " " + exercises["Desc"]
     return exercises
 
 
@@ -1396,16 +1401,8 @@ def assign_user_cluster(members: pd.DataFrame, profile: dict) -> int:
         ]
     )
 
-    # Jarak dihitung dengan FUNGSI YANG SAMA yang membentuk klasternya
-    # (kprototypes_distances), bukan rumus tersendiri. Sebelumnya di sini
-    # dipakai norma L2 yang tidak dikuadratkan ditambah proporsi ketidakcocokan
-    # kategorikal (bobot 1/4), sedangkan pelatihan memakai jarak kuadrat
-    # ditambah jumlah ketidakcocokan (bobot 1). Dua rumus berbeda atas modus
-    # yang sama berarti pengguna baru bisa mendarat di klaster yang BUKAN
-    # klaster terdekat menurut model -- dan bobot yang lebih kecil membuat
-    # kesamaan kategorikal (jenis kelamin, tujuan, level) nyaris tidak
-    # berpengaruh. Memanggil ulang fungsinya membuat keduanya tidak bisa
-    # berbeda lagi di kemudian hari.
+    # Jarak dihitung dengan fungsi yang SAMA yang membentuk klasternya, supaya
+    # pengguna baru tidak bisa mendarat di klaster yang bukan klaster terdekat.
     distances = kprototypes_distances(
         profile_numeric_scaled.reshape(1, -1),
         profile_categories.reshape(1, -1),
@@ -1432,14 +1429,9 @@ def member_feature_matrices(
 def _initial_centroid_indices(size: int, n_clusters: int, random_state: int | None) -> np.ndarray:
     """Baris mana yang dipakai sebagai titik awal klaster.
 
-    Tanpa `random_state`, titik awalnya DETERMINISTIK (disebar merata lewat
-    np.linspace) -- itulah yang dipakai aplikasi, supaya klaster yang sama
-    selalu dihasilkan dari data yang sama tanpa perlu menyimpan seed.
-
-    Dengan `random_state`, titik awalnya diundi. Itu hanya dipakai notebook
-    pengujian untuk mengukur seberapa peka hasilnya terhadap inisialisasi:
-    algoritma yang bagus tapi hasilnya berubah-ubah tiap dijalankan tidak layak
-    dilaporkan sebagai temuan penelitian.
+    Tanpa `random_state`, titik awalnya deterministik (disebar merata lewat
+    np.linspace) -- itu yang dipakai aplikasi. Dengan `random_state`, titik awalnya
+    diundi; dipakai notebook pengujian untuk mengukur kepekaan terhadap inisialisasi.
     """
     if random_state is None:
         return np.linspace(0, size - 1, n_clusters, dtype=int)
@@ -1456,9 +1448,7 @@ def fit_kprototypes(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Satu kali K-Prototypes dari SATU titik awal.
 
-    Dipakai langsung oleh uji stabilitas di notebook (lewat `random_state`).
-    Pemilihan titik awal terbaik dilakukan di `fit_member_cluster_model`, bukan
-    di sini, supaya fungsi ini tetap punya satu tugas saja.
+    Pemilihan titik awal terbaik dilakukan di fit_member_cluster_model(), bukan di sini.
     """
     n_clusters = max(1, min(n_clusters, len(numeric)))
     init_indices = _initial_centroid_indices(len(numeric), n_clusters, random_state)
@@ -1495,34 +1485,48 @@ def kprototypes_total_cost(
     return float(distances[np.arange(len(labels)), labels].sum())
 
 
+def member_categorical_weights() -> np.ndarray:
+    """Bobot tiap atribut kategorikal anggota, urut sesuai MEMBER_CATEGORICAL_COLUMNS.
+
+    Dibangun dari nama kolom, bukan ditulis sebagai daftar angka, supaya bobotnya
+    tetap menempel pada atribut yang benar walaupun urutan kolomnya berubah.
+    """
+    return np.array(
+        [MEMBER_CATEGORICAL_WEIGHTS.get(column, 1.0) for column in MEMBER_CATEGORICAL_COLUMNS],
+        dtype=float,
+    )
+
+
 def kprototypes_distances(
     numeric: np.ndarray,
     categorical: np.ndarray,
     numeric_modes: np.ndarray,
     categorical_modes: np.ndarray,
+    weights: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Matriks jarak K-Prototypes tiap baris ke tiap modus: kuadrat Euclid + jumlah ketidakcocokan kategori."""
+    """Matriks jarak K-Prototypes tiap baris ke tiap modus.
+
+    Jaraknya kuadrat Euclid pada atribut numerik ditambah ketidakcocokan kategorikal
+    berbobot. `weights` bawaannya bobot anggota, bukan vektor satuan, supaya keempat
+    pemakainya -- pembentuk klaster, Metode Siku, penilai performa, dan pemetaan
+    pengguna baru -- memakai bobot yang sama persis.
+    """
+    if weights is None:
+        weights = member_categorical_weights()
     numeric_distance = ((numeric[:, None, :] - numeric_modes[None, :, :]) ** 2).sum(axis=2)
-    categorical_distance = (categorical[:, None, :] != categorical_modes[None, :, :]).sum(axis=2)
+    categorical_distance = (
+        (categorical[:, None, :] != categorical_modes[None, :, :]) * weights
+    ).sum(axis=2)
     return numeric_distance + categorical_distance
 
 
 def categorical_attribute_weights(values: np.ndarray) -> np.ndarray:
     """Bobot penyeimbang antar-atribut untuk jarak Hamming.
 
-    MASALAHNYA. Hamming memberi tiap atribut nilai 0 atau 1, yang terlihat adil
-    tetapi tidak. Sebuah atribut yang isinya nyaris seragam hampir selalu
-    bernilai 0, jadi praktis tidak pernah ikut membedakan dua baris. Pada data
-    latihan, `Type` 90% berisi "Strength" dan `Level` 92% berisi "Intermediate",
-    sehingga peluang keduanya menyumbang jarak hanya 0,18 dan 0,16 -- sedangkan
-    `BodyPart` (16 kategori) dan `Equipment` (12 kategori) menyumbang di atas
-    0,83. Efeknya klaster terbentuk hanya dari dua atribut, dua lainnya menumpang.
-
-    OBATNYA. Tiap atribut diberi bobot berbanding terbalik dengan peluangnya
-    berbeda, sehingga keempatnya menyumbang setara. Diukur dengan Rasio Hamming
-    polos (tanpa bobot, supaya penggarisnya tidak ikut berubah), pemisahan
-    membaik dari 0,5698 menjadi 0,5230; kemurnian `Level` di dalam klaster naik
-    dari 93,8% ke 99,1%.
+    Tiap atribut diberi bobot berbanding terbalik dengan peluangnya berbeda pada dua
+    baris acak, lalu dinormalkan agar rata-ratanya satu, sehingga atribut yang
+    sebarannya nyaris seragam tetap ikut membedakan data.
+    Nilai bobot pada dataset ini: docs/catatan-desain.md bagian 3.
     """
     rows = len(values)
     probabilities = []
@@ -1548,9 +1552,8 @@ def fit_kmodes(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Satu kali K-Modes dari SATU titik awal.
 
-    `weights` default-nya bobot penyeimbang dari data itu sendiri. Berikan
-    array satuan untuk mendapatkan Hamming polos (dipakai notebook saat
-    membandingkan kondisi sebelum dan sesudah pembobotan).
+    `weights` bawaannya bobot penyeimbang dari data itu sendiri; berikan array satuan
+    untuk mendapatkan Hamming polos.
     """
     values = categorical.astype(str).to_numpy()
     n_clusters = max(1, min(n_clusters, len(values)))
@@ -1584,11 +1587,8 @@ def kmodes_total_cost(
 ) -> float:
     """Total ketidakcocokan setiap baris terhadap modus klasternya sendiri.
 
-    Inilah fungsi biaya (cost function) K-Modes -- yang diminimalkan saat
-    melatih, dan yang kurvanya dicari sikunya saat menetapkan K. Tanpa `weights`
-    hasilnya Hamming Cost POLOS (tiap atribut bernilai 0/1), yaitu angka yang
-    dilaporkan di tabel hasil; dengan bobot penyeimbang hasilnya adalah biaya
-    yang benar-benar dioptimalkan `fit_kmodes`.
+    Inilah fungsi biaya K-Modes yang diminimalkan saat melatih dan yang kurvanya
+    dicari sikunya. Tanpa `weights` hasilnya Hamming Cost polos.
     """
     mismatch = (values[:, None, :] != modes[None, :, :]).astype(float)
     if weights is not None:
@@ -1599,15 +1599,10 @@ def kmodes_total_cost(
 
 
 def hamming_separation_ratio(distances: np.ndarray, labels: np.ndarray) -> float:
-    """Rata-rata jarak Hamming DALAM klaster dibagi rata-rata ANTAR klaster.
+    """Rata-rata jarak Hamming DALAM klaster dibagi rata-rata jarak ANTAR klaster.
 
-    `distances` adalah matriks jarak yang sudah dihitung sebelumnya. Matriks itu
-    tidak bergantung pada label, jadi cukup dihitung sekali lalu dipakai ulang
-    untuk menilai semua kandidat -- itulah yang membuat pencarian K sekaligus
-    pencarian titik awal tetap murah.
-
-    Makin kecil makin baik: anggota satu klaster jauh lebih mirip satu sama lain
-    daripada dengan anggota klaster lain.
+    Makin kecil makin baik. `distances` adalah matriks jarak yang sudah dihitung
+    sebelumnya dan tidak bergantung pada label, jadi cukup dihitung sekali.
     """
     same_cluster = labels[:, None] == labels[None, :]
     off_diagonal = ~np.eye(len(labels), dtype=bool)
@@ -1642,8 +1637,8 @@ def clustering_performance_report(
 
 def kprototypes_performance(members: pd.DataFrame) -> dict:
     """Ukur performa K-Prototypes: cost, Silhouette dengan Gower Distance, dan sebaran klaster."""
-    numeric_columns = ["Age", "Weight (kg)", "Height (m)", "BMI"]
-    categorical_columns = ["Gender", "Activity_Level", "Experience_Label", "Fitness_Goal"]
+    numeric_columns = MEMBER_NUMERIC_COLUMNS
+    categorical_columns = MEMBER_CATEGORICAL_COLUMNS
     numeric, categorical, _ = member_feature_matrices(members, numeric_columns, categorical_columns)
     # K yang diuji harus K yang benar-benar dipakai aplikasi, bukan angka lain.
     _, labels, numeric_modes, categorical_modes = search_member_clusters(numeric, categorical)
@@ -1665,23 +1660,11 @@ def kprototypes_performance(members: pd.DataFrame) -> dict:
 
 
 def kmeans_food_performance(foods: pd.DataFrame) -> dict:
-    """Ukur performa K-Means: inertia, Calinski-Harabasz, Silhouette, dan sebaran klaster.
+    """Ringkasan performa klaster K-Means makanan: inertia, Calinski-Harabasz, dan Silhouette.
 
-    DUA METRIK MUTU, KEDUANYA PENILAI. Inertia hanya bisa turun saat K bertambah,
-    jadi ia tidak bisa menilai apa pun; ia dilaporkan sebagai keterangan kerapatan.
-    Yang menilai adalah dua metrik yang saling melengkapi:
-
-      Calinski-Harabasz -- sebaran ANTAR klaster dibagi sebaran DI DALAM klaster.
-                           Melihat seluruh struktur sekaligus, tanpa batas atas.
-      Silhouette        -- dihitung per titik: seberapa dekat sebuah menu ke
-                           klasternya sendiri dibanding klaster tetangganya.
-                           Terbatas -1..1, jadi bisa dibandingkan lintas dataset.
-
-    Keduanya dihitung SESUDAH K ditetapkan. K-Means makanan memakai K struktural
-    (FOOD_CLUSTER_COUNT), jadi tidak ada satu pun angka di sini yang ikut memilih K.
+    Dihitung pada ruang fitur yang sama persis dengan yang membentuk klasternya.
     """
-    features = foods[["calories", "proteins", "fat", "carbohydrate"]]
-    scaled = MinMaxScaler().fit_transform(features)
+    scaled = food_cluster_features(foods)
     model = KMeans(n_clusters=FOOD_CLUSTER_COUNT, random_state=42, n_init=10)
     labels = model.fit_predict(scaled)
     return performance_payload(
@@ -1817,16 +1800,10 @@ def safe_calinski_harabasz(data, labels) -> float | None:
 
 
 def gower_pairwise_distances(numeric: np.ndarray, categorical: np.ndarray) -> np.ndarray:
-    """Matriks Gower Distance antar seluruh pasangan baris data campuran.
+    """Matriks jarak Gower antar seluruh pasangan baris data campuran.
 
-    Gower menyatukan dua tipe data dalam satu skala 0..1:
-
-        atribut numerik     -> |x_i - x_j| / rentang atribut itu
-        atribut kategorikal -> 0 bila sama, 1 bila berbeda
-
-    lalu seluruh suku dirata-ratakan. Karena tiap suku sudah dibagi rentangnya
-    sendiri, hasilnya TIDAK berubah oleh penskalaan: kolom mentah dan kolom
-    hasil MinMaxScaler menghasilkan matriks yang sama.
+    Merata-ratakan jarak ternormalisasi tiap atribut numerik dan ketidakcocokan tiap
+    atribut kategorikal, sehingga sah dipakai pada data bertipe campuran.
     """
     numeric = np.asarray(numeric, dtype=float)
     categorical = np.asarray(categorical)
@@ -1840,29 +1817,16 @@ def gower_pairwise_distances(numeric: np.ndarray, categorical: np.ndarray) -> np
 
 
 def gower_silhouette(numeric: np.ndarray, categorical: np.ndarray, labels: np.ndarray) -> float | None:
-    """Silhouette Score data campuran, dihitung di atas matriks Gower yang sudah jadi.
+    """Silhouette Coefficient atas jarak Gower, untuk klaster data campuran.
 
-    URUTANNYA: matriks jarak Gower seluruh data dibentuk lebih dulu, baru
-    matriks itu dimasukkan ke `silhouette_score(..., metric="precomputed")`.
-
-    Jarak pembentuk klaster (kuadrat Euclid + ketidakcocokan) TIDAK dipakai di
-    sini. Skalanya tidak terbatas dan bagian numeriknya berpangkat dua,
-    sehingga nilai Silhouette yang dihasilkannya tidak sebanding dengan angka
-    Silhouette mana pun di literatur. Gower membatasi setiap atribut ke 0..1
-    lebih dulu, jadi -1..1 pada hasilnya berarti seperti yang biasa dimaksud.
+    Silhouette Euclidean tidak sah pada data campuran, karena itu jaraknya diganti
+    Gower lebih dulu.
     """
     sample = _evaluation_sample_index(len(numeric))
     if sample is None:
         sample = np.arange(len(numeric))
     matriks_gower = gower_pairwise_distances(numeric[sample], categorical[sample])
     return safe_silhouette(matriks_gower, np.asarray(labels)[sample], metric="precomputed")
-
-
-def kprototypes_pairwise_distances(numeric: np.ndarray, categorical: np.ndarray) -> np.ndarray:
-    """Matriks jarak K-Prototypes antar seluruh pasangan baris, untuk silhouette precomputed."""
-    numeric_distance = ((numeric[:, None, :] - numeric[None, :, :]) ** 2).sum(axis=2)
-    categorical_distance = (categorical[:, None, :] != categorical[None, :, :]).sum(axis=2)
-    return numeric_distance + categorical_distance
 
 
 def categorical_pairwise_distances(values: np.ndarray) -> np.ndarray:
@@ -1873,12 +1837,9 @@ def categorical_pairwise_distances(values: np.ndarray) -> np.ndarray:
 def _food_tfidf_model(foods: pd.DataFrame) -> tuple[TfidfVectorizer, np.ndarray]:
     """Pasangan (vectorizer, tfidf_matrix) yang sudah terlatih untuk `foods`.
 
-    Memakai ulang model yang sudah dihitung di prepare_foods() dan dititipkan
-    pada foods.attrs["food_tfidf_model"] -- pola .attrs yang sama dengan
-    member_cluster_model -- supaya recommend_foods() tidak melatih ulang TF-IDF
-    di setiap pemanggilan. Kalau attrs-nya tidak ada atau sudah tidak cocok
-    (mis. dioper DataFrame makanan berukuran lain), modelnya dilatih ulang di
-    sini, jadi hasilnya tetap benar dalam kedua keadaan.
+    Memakai ulang model yang dititipkan prepare_foods() pada foods.attrs supaya TF-IDF
+    tidak dilatih ulang tiap pemanggilan; dilatih ulang di sini bila attrs-nya tidak
+    cocok dengan DataFrame yang dioper.
     """
     model = foods.attrs.get("food_tfidf_model")
     if model is not None and model.get("tfidf_matrix") is not None and model["tfidf_matrix"].shape[0] == len(foods):
@@ -1929,15 +1890,14 @@ def build_preference_query(preference: str, categories: Iterable[str] | None = N
 def slot_candidate_pool(foods: pd.DataFrame, meal_slot: str) -> pd.DataFrame:
     """Kandidat yang boleh mengisi satu slot waktu makan.
 
-    Slot camilan disaring KERAS di sini dan tidak pernah dilonggarkan pada
-    fallback mana pun: lebih baik slotnya kosong daripada menawarkan nasi atau
-    mie sebagai camilan.
+    Slot camilan disaring keras dan tidak pernah dilonggarkan pada fallback mana pun;
+    slot makan berat menolak kudapan manis dan jajanan yang selalu berstatus camilan.
     """
     if meal_slot == SNACK_SLOT and "Is_Snack" in foods.columns:
         return foods[foods["Is_Snack"].fillna(False).astype(bool)]
-    if meal_slot == BREAKFAST_SLOT and "name" in foods.columns:
+    if meal_slot in MAIN_MEAL_SLOTS and "name" in foods.columns:
         names = foods["name"].fillna("").astype(str).str.lower().str.strip()
-        return foods[~names.str.contains(BREAKFAST_UNSUITABLE_PATTERN, regex=True, na=False)]
+        return foods[~names.str.contains(MAIN_MEAL_UNSUITABLE_PATTERN, regex=True, na=False)]
     return foods
 
 
@@ -1947,6 +1907,35 @@ def is_staple_food(foods: pd.DataFrame) -> pd.Series:
     return names.str.contains(STAPLE_PATTERN, regex=True, na=False)
 
 
+def nutrition_fit_score(foods: pd.DataFrame, fitness_goal: str | None) -> pd.Series:
+    """Seberapa cocok tiap menu dengan tujuan kebugaran, dihitung dari gizinya sendiri.
+
+    Arah penilaiannya mengikuti tujuan: menurunkan berat menghargai protein padat dan
+    kalori encer, menaikkan berat menghargai kalori padat, menjaga berat hanya
+    menghargai kepadatan protein. Kedua sukunya dibagi pembagi tetap supaya
+    besarannya sebanding.
+    """
+    kalori = foods["calories"].replace(0, np.nan)
+    kepadatan_protein = (foods["proteins"] / kalori * 100).fillna(0)
+    kepadatan_kalori = foods["calories"].fillna(0)
+    goal = normalize_goal(fitness_goal) if fitness_goal else DEFAULT_FITNESS_GOAL
+    if goal == "Gain Weight":
+        return kepadatan_protein / 20 + kepadatan_kalori / 400
+    if goal == "Lose Weight":
+        return kepadatan_protein / 10 - kepadatan_kalori / 400
+    return kepadatan_protein / 10
+
+
+def dish_family(foods: pd.DataFrame) -> pd.Series:
+    """Jenis hidangan sebuah menu: dua kata pertama namanya.
+
+    Dipakai _rank_foods() untuk membatasi berapa banyak menu sejenis yang boleh
+    menumpuk di peringkat atas.
+    """
+    names = foods["name"].fillna("").astype(str).str.lower().str.split()
+    return names.map(lambda kata: " ".join(kata[:2]) if kata else "")
+
+
 def _rank_foods(
     foods: pd.DataFrame,
     preference: str,
@@ -1954,8 +1943,15 @@ def _rank_foods(
     *,
     vectorizer: TfidfVectorizer | None = None,
     tfidf=None,
+    fitness_goal: str | None = None,
 ) -> pd.DataFrame:
-    """Urutkan makanan: kecocokan kategori dulu, lalu skor cosine similarity CBF."""
+    """Urutkan menu dengan empat kunci, lalu terapkan pagar keragaman.
+
+    Kuncinya berurutan dari yang paling tegas ke yang paling lunak:
+    `_category` -> `_match` -> `_nutrition` -> `_score` (CBF).
+
+    Alasan urutan itu dan pengukuran dampaknya: docs/catatan-desain.md bagian 6.
+    """
     if vectorizer is None or tfidf is None:
         vectorizer = TfidfVectorizer(stop_words="english")
         tfidf = vectorizer.fit_transform(foods["CBF_Text"])
@@ -1965,8 +1961,26 @@ def _rank_foods(
         _score=scores,
         _category=match_food_categories(foods, categories),
         _match=match_food_keywords(foods, parse_preference_keywords(preference)),
+        _nutrition=nutrition_fit_score(foods, fitness_goal),
     )
-    return ranked.sort_values(["_category", "_match", "_score"], ascending=[False, False, False])
+    ranked = ranked.sort_values(
+        ["_category", "_match", "_nutrition", "_score"],
+        ascending=[False, False, False, False],
+    )
+
+    # Pagar keragaman. Menu ke-(DISH_FAMILY_LIMIT+1) dan seterusnya dari satu
+    # keluarga hidangan didorong turun. Pengurutan ulangnya stabil dan tetap
+    # dipimpin _category lalu _match, sehingga kendali pengguna tidak dilangkahi.
+    keluarga = dish_family(ranked)
+    ranked = ranked.assign(
+        _diverse=keluarga.groupby(keluarga, sort=False).cumcount() < DISH_FAMILY_LIMIT
+    )
+    ranked = ranked.sort_values(
+        ["_category", "_match", "_diverse"],
+        ascending=[False, False, False],
+        kind="stable",
+    )
+    return ranked.drop(columns="_diverse")
 
 
 def _candidate_tiers(
@@ -1977,28 +1991,37 @@ def _candidate_tiers(
 ) -> list[pd.DataFrame]:
     """Urutan pelonggaran filter saat slot sulit diisi.
 
-    Kategori dan klaster boleh dilonggarkan (kalau tidak, satu kategori sempit
-    membuat slot kosong); kelayakan camilan tidak, karena `pool` sudah disaring
-    lebih dulu oleh slot_candidate_pool().
-
-    `cluster_first` dipakai oleh swap: Dynamic Portion Constraint mensyaratkan
-    pengganti berasal dari klaster yang sama, jadi di sana klaster dipertahankan
-    lebih lama daripada kategori. Saat menyusun menu baru urutannya dibalik --
-    kategori adalah pilihan eksplisit user, klaster hanya alat internal.
+    Kategori dan klaster boleh dilonggarkan; kelayakan camilan tidak, karena `pool`
+    sudah disaring lebih dulu oleh slot_candidate_pool(). `cluster_first` dipakai
+    swap, yang mensyaratkan pengganti berasal dari klaster yang sama.
     """
+    pool = pool[~excluded_from_protein_role(pool, cluster)]
     in_category = pool["_category"].astype(bool)
     in_cluster = pool["Food_Cluster"] == cluster if cluster else pd.Series(True, index=pool.index)
     middle = [pool[in_cluster], pool[in_category]] if cluster_first else [pool[in_category], pool[in_cluster]]
     return [pool[in_cluster & in_category], *middle, pool]
 
 
+# Kerupuk dan sejenisnya bisa sangat tinggi protein secara angka, tetapi sebagai lauk
+# ia bukan sumber protein sepiring makan. Yang dilarang hanya PERANNYA: ia tetap
+# boleh mengisi peran karbohidrat maupun rendah kalori.
+PROTEIN_ROLES = frozenset({"B", "D"})
+CRACKER_PATTERN = r"\bkerupuk\b|\bkrupuk\b|\bkeripik\b|\bkripik\b|\brempeyek\b|\bpeyek\b|\bemping\b"
+
+
+def excluded_from_protein_role(foods: pd.DataFrame, cluster: str | None) -> pd.Series:
+    """True untuk menu yang tidak boleh mengisi slot berperan protein."""
+    if cluster not in PROTEIN_ROLES or "name" not in foods:
+        return pd.Series(False, index=foods.index)
+    nama = foods["name"].fillna("").astype(str).str.lower()
+    return nama.str.contains(CRACKER_PATTERN, regex=True, na=False)
+
+
 def split_slot_quota(slot_quota: float, item_count: int) -> list[int]:
     """Bagi kuota kalori satu slot menjadi target per item dalam bilangan bulat.
 
     Sisa pembagian dibagikan ke item-item pertama (metode sisa terbesar), supaya
-    penjumlahan target seluruh item PERSIS sama dengan kuota slot. Pembulatan
-    per item tanpa koreksi ini membuat total harian meleset beberapa kkal dari
-    kebutuhan energi pengguna -- kecil, tapi merusak klaim bahwa totalnya setara.
+    penjumlahan target seluruh item persis sama dengan kuota slot.
     """
     if item_count <= 0:
         return []
@@ -2013,23 +2036,27 @@ def recommend_foods(
     preference: str = "",
     excluded_food_ids: Iterable[int] | None = None,
     categories: Iterable[str] | None = None,
+    fitness_goal: str | None = None,
 ) -> dict[str, list[dict]]:
     """Susun menu harian empat slot yang totalnya persis sama dengan target kalori.
 
-    Kuota tiap slot = target kalori harian x proporsi slot (MEAL_DISTRIBUTION),
-    lalu dibagi rata ke item-item di slot itu. Gramasi tiap item dihitung dengan
-    Persamaan Konversi Kalori ke Gramasi dan divalidasi Volumetric Sanity Check;
-    item yang gagal didiskualifikasi dan sistem lanjut ke peringkat CBF berikutnya.
+    Kuota tiap slot = target kalori harian x proporsi slot, lalu dibagi rata ke item
+    di slot itu. Gramasi tiap item dihitung dengan portion_gram_for_calories() dan
+    divalidasi Volumetric Sanity Check.
+
+    `fitness_goal` menentukan SUSUNAN peran gizi tiap slot lewat meal_template(),
+    bukan sekadar besaran kalorinya.
     """
     excluded = set(excluded_food_ids or [])
     vectorizer, tfidf = _food_tfidf_model(foods)
-    ranked = _rank_foods(foods, preference, categories, vectorizer=vectorizer, tfidf=tfidf)
+    ranked = _rank_foods(foods, preference, categories, vectorizer=vectorizer,
+                         tfidf=tfidf, fitness_goal=fitness_goal)
 
     quotas = slot_calorie_quota(nutrition.target_calories)
     recommendations: dict[str, list[dict]] = {}
     used_ids = set(excluded)
 
-    for meal_slot, clusters in MEAL_TEMPLATE.items():
+    for meal_slot, clusters in meal_template(fitness_goal).items():
         slot_quota = quotas[meal_slot]
         item_targets = split_slot_quota(slot_quota, len(clusters))
         slot_pool = slot_candidate_pool(ranked, meal_slot)
@@ -2039,11 +2066,9 @@ def recommend_foods(
         for cluster, item_target in zip(clusters, item_targets):
             available = slot_pool[~slot_pool["id"].isin(used_ids)]
 
-            # Satu makanan pokok saja per slot. Kandidat non-pokok dicoba lebih
-            # dulu; kalau benar-benar tidak ada yang lolos Volumetric Sanity
-            # Check, barulah seluruh kandidat dipakai lagi -- lebih baik satu
-            # slot berisi dua sumber karbohidrat daripada kuota kalorinya hilang
-            # dan total harian tidak lagi sama dengan kebutuhan energi pengguna.
+            # Satu makanan pokok saja per slot. Kandidat non-pokok dicoba lebih dulu;
+            # seluruh kandidat dipakai lagi hanya bila tidak ada yang lolos, supaya
+            # kuota kalori slot tidak hilang.
             urutan = [available]
             if staple_taken and not available.empty:
                 bukan_pokok = available[~is_staple_food(available)]
@@ -2084,7 +2109,7 @@ def _pick_food_candidate(candidates: pd.DataFrame, target_calories: float) -> di
         result["target_calories"] = round(target_calories)
         result["similarity_score"] = round(float(row.get("_score", 0.0)), 3)
         result["category_match"] = bool(row.get("_category", False))
-        for helper in ("_score", "_category", "_match"):
+        for helper in ("_score", "_category", "_match", "_nutrition"):
             result.pop(helper, None)
         return result
     return None
@@ -2099,14 +2124,13 @@ def swap_food(
     *,
     meal_slot: str | None = None,
     categories: Iterable[str] | None = None,
+    fitness_goal: str | None = None,
 ) -> dict | None:
     """Ganti satu item dengan Dynamic Portion Constraint.
 
-    Pengganti diambil dari KLASTER YANG SAMA dengan item yang diganti, lalu
-    gramasinya DIHITUNG ULANG dengan Persamaan Konversi Kalori ke Gramasi
-    terhadap kuota kalori item tersebut -- bukan dipakai pada gramasi default
-    si pengganti, karena itu akan merusak total kalori harian yang sudah
-    dikalkulasi dari kebutuhan energi pengguna.
+    Pengganti diambil dari klaster yang sama dengan item yang diganti, lalu gramasinya
+    dihitung ulang terhadap kuota kalori item tersebut, sehingga total kalori harian
+    tidak berubah.
     """
     excluded = {int(food_id) for food_id in (excluded_food_ids or [])}
     excluded.add(int(current_food["id"]))
@@ -2117,7 +2141,9 @@ def swap_food(
     if pool.empty:
         return None
 
-    ranked = _rank_foods(pool, preference, categories)
+    # Tujuan ikut dioper supaya penggantinya diurutkan dengan ukuran kesesuaian
+    # gizi yang sama dengan saat menu itu pertama kali disusun.
+    ranked = _rank_foods(pool, preference, categories, fitness_goal=fitness_goal)
     replacement = None
     for tier in _candidate_tiers(ranked, current_food.get("Food_Cluster"), cluster_first=True):
         replacement = _pick_food_candidate(tier, target_calories)
@@ -2135,46 +2161,142 @@ def swap_food(
     return replacement
 
 
+def _exercise_pool(exercises: pd.DataFrame, body_part: str) -> pd.DataFrame:
+    """Seluruh latihan untuk satu target otot, lengkap dengan kunci pengurut alat dan rating."""
+    target_parts = resolve_target_body_parts(body_part)
+    pool = exercises if target_parts is None else exercises[exercises["BodyPart"].isin(target_parts)]
+    return pool.copy()
+
+
+def exercise_cbf_scores(pool: pd.DataFrame, body_part: str, exercise_type: str,
+                        experience_level: str) -> np.ndarray:
+    """Skor Content-Based Filtering tiap latihan di kolam terhadap kueri pengguna.
+
+    TF-IDF dilatih pada KOLAM, bukan seluruh korpus, supaya IDF-nya mencerminkan
+    kandidat yang benar-benar bersaing. Kueri dirakit dari target otot, jenis latihan,
+    dan level; alat dan tujuan kebugaran tidak ikut (docs/catatan-desain.md bagian 5).
+    """
+    if pool.empty:
+        return np.zeros(0)
+    vectorizer = TfidfVectorizer(stop_words="english")
+    matriks = vectorizer.fit_transform(pool["CBF_Text"])
+    kueri = f"{body_part} {exercise_type} {experience_level}".strip()
+    return cosine_similarity(vectorizer.transform([kueri]), matriks).ravel()
+
+
+def _rank_exercise_candidates(pool: pd.DataFrame, experience_level: str,
+                              used_equipment: set, used_clusters: set,
+                              *, body_part: str = "", exercise_type: str = "") -> pd.DataFrame:
+    """Urutkan kandidat latihan dengan empat kunci, dari yang paling tegas ke paling lunak.
+
+        _cluster_fresh   -> klaster K-Modes yang belum terwakili didahulukan
+        _equipment_fresh -> alat yang belum terpakai didahulukan
+        _equipment_rank  -> prioritas alat menurut level pengalaman
+        _cbf             -> cosine similarity Content-Based Filtering
+
+    CBF sengaja menjadi kunci terakhir: struktur menyaring lebih dulu, CBF memutuskan
+    di dalam sisanya. Klaster dipakai sebagai pengurut, bukan penyaring keras.
+    """
+    prioritas = EQUIPMENT_PRIORITY[experience_level]
+    peringkat = {alat: urutan for urutan, alat in enumerate(prioritas)}
+    kolom_klaster = pool["Exercise_Cluster"] if "Exercise_Cluster" in pool else pd.Series(
+        -1, index=pool.index
+    )
+    return pool.assign(
+        _cluster_fresh=(~kolom_klaster.isin(used_clusters)).astype(int),
+        _equipment_fresh=(~pool["Equipment"].isin(used_equipment)).astype(int),
+        _equipment_rank=pool["Equipment"].map(lambda alat: peringkat.get(alat, len(prioritas))),
+        _cbf=exercise_cbf_scores(pool, body_part, exercise_type, experience_level),
+    ).sort_values(
+        ["_cluster_fresh", "_equipment_fresh", "_equipment_rank", "_cbf"],
+        ascending=[False, False, True, False],
+    )
+
+
+def _scale_type_plan(fitness_goal: str, limit: int) -> list[tuple[str, int]]:
+    """Kuota tiap jenis latihan untuk jumlah latihan yang diminta."""
+    plan = EXERCISE_TYPE_PLAN[normalize_goal(fitness_goal)]
+    total = sum(jumlah for _, jumlah in plan)
+    return [(jenis, max(1, round(jumlah * limit / total))) for jenis, jumlah in plan]
+
+
 def recommend_exercises(
     exercises: pd.DataFrame,
     *,
     body_part: str,
-    workout_type: str,
-    equipment_preference: str,
     experience_level: str,
     fitness_goal: str,
     limit: int = 5,
 ) -> pd.DataFrame:
-    """Susun daftar latihan teratas: saring per level dan target otot, ranking TF-IDF, lalu ragamkan alat."""
-    allowed_levels = LEVEL_ALLOWLIST[experience_level]
-    filtered = exercises[exercises["Level"].isin(allowed_levels)].copy()
-    target_parts = resolve_target_body_parts(body_part)
-    if target_parts is not None:
-        filtered = filtered[filtered["BodyPart"].isin(target_parts)]
-    target_filtered = filtered.copy()
-    if workout_type != "Any":
-        filtered = filtered[filtered["Type"] == workout_type]
-    if filtered.empty and workout_type != "Any":
-        filtered = target_filtered
-    if filtered.empty:
-        selected = filtered.copy()
-        params = TRAINING_PARAMETERS[(normalize_goal(fitness_goal), experience_level)]
-        for key, value in params.items():
-            selected[key] = value
-        selected["Similarity"] = pd.Series(dtype=float)
-        return selected
+    """Susun program latihan dari target otot dan jumlah yang diminta.
 
-    query = f"{body_part} {workout_type} {equipment_preference} {experience_level}"
-    vectorizer = TfidfVectorizer(stop_words="english")
-    tfidf = vectorizer.fit_transform(filtered["CBF_Text"])
-    scores = cosine_similarity(vectorizer.transform([query]), tfidf).ravel()
-    ranked = filtered.assign(Similarity=scores).sort_values("Similarity", ascending=False)
-
-    selected = _enforce_equipment_diversity(ranked, limit)
+    Jenis latihan ditentukan tujuan lewat EXERCISE_TYPE_PLAN dan prioritas alat
+    ditentukan level lewat EQUIPMENT_PRIORITY; keduanya bukan masukan pengguna.
+    Tiap kuota jenis menaiki EXERCISE_LEVEL_LADDER sampai terpenuhi, dan latihan yang
+    diambil dari lapis di atas level pengguna ditandai pada NEEDS_SUPERVISION_COLUMN.
+    """
+    pool = _exercise_pool(exercises, body_part)
     params = TRAINING_PARAMETERS[(normalize_goal(fitness_goal), experience_level)]
+    if pool.empty:
+        kosong = pool.assign(Similarity=pd.Series(dtype=float))
+        kosong[NEEDS_SUPERVISION_COLUMN] = pd.Series(dtype=bool)
+        for key, value in params.items():
+            kosong[key] = value
+        return kosong
+
+    tangga = EXERCISE_LEVEL_LADDER[experience_level]
+    terpilih: list[pd.Series] = []
+    judul_dipakai: set[str] = set()
+    alat_dipakai: set[str] = set()
+    klaster_dipakai: set = set()
+
+    def ambil(kandidat: pd.DataFrame, jumlah: int, lapis: int, jenis: str = "") -> int:
+        kandidat = kandidat[~kandidat["Title"].astype(str).isin(judul_dipakai)]
+        if kandidat.empty or jumlah <= 0:
+            return 0
+        terurut = _rank_exercise_candidates(
+            kandidat, experience_level, alat_dipakai, klaster_dipakai,
+            body_part=body_part, exercise_type=jenis,
+        )
+        diambil = 0
+        for _, baris in terurut.head(jumlah).iterrows():
+            catatan = baris.copy()
+            catatan[NEEDS_SUPERVISION_COLUMN] = lapis > 1
+            terpilih.append(catatan)
+            judul_dipakai.add(str(baris["Title"]))
+            alat_dipakai.add(baris["Equipment"])
+            if "Exercise_Cluster" in baris:
+                klaster_dipakai.add(baris["Exercise_Cluster"])
+            diambil += 1
+        return diambil
+
+    for jenis, jumlah in _scale_type_plan(fitness_goal, limit):
+        sisa = jumlah
+        for lapis, level_set in enumerate(tangga, start=1):
+            if sisa <= 0:
+                break
+            sisa -= ambil(pool[pool["Level"].isin(level_set) & (pool["Type"] == jenis)],
+                          sisa, lapis, jenis)
+
+    # Kuota yang tak terpenuhi jatuh ke sisa kolam, jenis apa pun, tetap menaiki
+    # tangga level yang sama.
+    for lapis, level_set in enumerate(tangga, start=1):
+        if len(terpilih) >= limit:
+            break
+        ambil(pool[pool["Level"].isin(level_set)], limit - len(terpilih), lapis)
+
+    selected = pd.DataFrame(terpilih[:limit])
+    if selected.empty:
+        selected = pool.iloc[0:0].assign(Similarity=pd.Series(dtype=float))
+        selected[NEEDS_SUPERVISION_COLUMN] = pd.Series(dtype=bool)
+    else:
+        bantu = ("_cluster_fresh", "_equipment_fresh", "_equipment_rank", "_cbf")
+        # Skor CBF dipertahankan sebagai kolom Similarity -- itulah nilai yang
+        # benar-benar dipakai memeringkat di dalam tiap kuota jenis.
+        selected["Similarity"] = selected["_cbf"].round(3) if "_cbf" in selected else pd.NA
+        selected = selected.drop(columns=[k for k in bantu if k in selected])
     for key, value in params.items():
         selected[key] = value
-    selected["Similarity"] = selected["Similarity"].round(3)
     return selected
 
 
@@ -2191,72 +2313,66 @@ def switch_exercise(
     current_recommendations: pd.DataFrame,
     filters: dict,
 ) -> dict | None:
-    """Cari satu latihan pengganti yang paling mirip, di luar yang sedang tampil dan yang sudah ditolak."""
+    """Ganti satu latihan tanpa merusak komposisi program.
+
+    Jenis latihan yang diganti dipertahankan, dan pengganti diambil dari klaster yang
+    sama lebih dulu sebelum dilonggarkan. Alat serta klaster yang sedang dipakai
+    program lain ikut dihindari.
+    """
     experience_level = filters.get("experience_level", "Beginner")
     fitness_goal = filters.get("fitness_goal", "Maintain Weight")
     body_part = filters.get("body_part", "Any")
-    workout_type = filters.get("workout_type", "Any")
-    equipment_preference = filters.get("equipment_preference", "Any")
 
-    allowed_levels = LEVEL_ALLOWLIST[experience_level]
-    candidates = exercises[exercises["Level"].isin(allowed_levels)].copy()
-    target_parts = resolve_target_body_parts(body_part)
-    if target_parts is not None:
-        candidates = candidates[candidates["BodyPart"].isin(target_parts)]
-    target_candidates = candidates.copy()
-    if workout_type != "Any":
-        candidates = candidates[candidates["Type"] == workout_type]
-    if candidates.empty and workout_type != "Any":
-        candidates = target_candidates
+    pool = _exercise_pool(exercises, body_part)
+    if pool.empty:
+        return None
 
     current_title = str(current_exercise.get("Title", ""))
+    current_type = str(current_exercise.get("Type", ""))
     selected_titles = {
         str(title)
         for title in current_recommendations.get("Title", pd.Series(dtype=str)).tolist()
     }
     excluded_titles = {str(title) for title in filters.get("excluded_titles", [])}
-    candidates = candidates[~candidates["Title"].astype(str).isin(selected_titles | excluded_titles | {current_title})]
-    if candidates.empty:
+    pool = pool[~pool["Title"].astype(str).isin(selected_titles | excluded_titles | {current_title})]
+    if pool.empty:
         return None
 
-    query = f"{body_part} {workout_type} {equipment_preference} {experience_level}"
-    vectorizer = TfidfVectorizer(stop_words="english")
-    tfidf = vectorizer.fit_transform(candidates["CBF_Text"])
-    scores = cosine_similarity(vectorizer.transform([query]), tfidf).ravel()
-    ranked = candidates.assign(Similarity=scores)
-    if equipment_preference != "Any":
-        ranked["_equipment_match"] = (ranked["Equipment"] == equipment_preference).astype(int)
-        ranked = ranked.sort_values(["_equipment_match", "Similarity"], ascending=False)
-    else:
-        ranked = ranked.sort_values("Similarity", ascending=False)
+    # Alat dan klaster yang sedang dipakai program lain ikut dihindari supaya
+    # penggantian tidak membuat seluruh program menyempit ke satu jenis.
+    alat_dipakai = set(current_recommendations.get("Equipment", pd.Series(dtype=str)).tolist())
+    alat_dipakai.discard(current_exercise.get("Equipment"))
+    klaster_dipakai = set(
+        current_recommendations.get("Exercise_Cluster", pd.Series(dtype=object)).tolist()
+    )
+    klaster_dipakai.discard(current_exercise.get("Exercise_Cluster"))
 
-    replacement = ranked.iloc[0].drop(labels=["_equipment_match"], errors="ignore").to_dict()
-    params = TRAINING_PARAMETERS[(normalize_goal(fitness_goal), experience_level)]
-    replacement.update(params)
-    replacement["Similarity"] = round(float(replacement.get("Similarity", 0)), 3)
-    return replacement
+    # Tangga pelonggaran: jenis yang sama pada level sendiri dulu, lalu jenis
+    # yang sama pada level di atasnya, baru jenis apa pun.
+    tangga = EXERCISE_LEVEL_LADDER[experience_level]
+    lapisan = []
+    if current_type:
+        lapisan += [(pool[pool["Level"].isin(lv) & (pool["Type"] == current_type)], urutan)
+                    for urutan, lv in enumerate(tangga, start=1)]
+    lapisan += [(pool[pool["Level"].isin(lv)], urutan) for urutan, lv in enumerate(tangga, start=1)]
 
-
-def _enforce_equipment_diversity(ranked: pd.DataFrame, limit: int) -> pd.DataFrame:
-    """Ambil tiga peringkat teratas dengan alat berbeda dulu, sisanya menyusul urut skor."""
-    selected_indices = []
-    used_equipment = set()
-
-    for index, row in ranked.iterrows():
-        if row["Equipment"] in used_equipment:
+    for kandidat, lapis in lapisan:
+        if kandidat.empty:
             continue
-        selected_indices.append(index)
-        used_equipment.add(row["Equipment"])
-        if len(selected_indices) >= min(limit, 3):
-            break
-
-    for index in ranked.index:
-        if len(selected_indices) >= limit:
-            break
-        if index not in selected_indices:
-            selected_indices.append(index)
-
-    return ranked.loc[selected_indices].copy()
+        baris = _rank_exercise_candidates(
+            kandidat, experience_level, alat_dipakai, klaster_dipakai,
+            body_part=body_part, exercise_type=current_type,
+        ).iloc[0]
+        skor = float(baris.get("_cbf", 0.0) or 0.0)
+        replacement = baris.drop(
+            labels=["_cluster_fresh", "_equipment_fresh", "_equipment_rank", "_cbf"],
+            errors="ignore",
+        ).to_dict()
+        replacement[NEEDS_SUPERVISION_COLUMN] = lapis > 1
+        replacement.update(TRAINING_PARAMETERS[(normalize_goal(fitness_goal), experience_level)])
+        replacement["Similarity"] = round(skor, 3)
+        return replacement
+    return None
 
 
 def profile_payload(nutrition: NutritionResult, **profile) -> dict:

@@ -117,34 +117,55 @@ assert any("Riwayat Aktivitas" in (m.value or "") for m in at.markdown), "kartu 
 
 print("== Meal Recommendation ==")
 at = run("Meal Recommendation")
-# Preferensi kini berupa kartu centang sumber protein, bukan daftar semua kategori.
+# Preferensi berupa DUA kartu centang: sumber protein dan sumber karbohidrat.
 pref = [c for c in at.checkbox if str(c.key or "").startswith("pref_")]
-assert pref, "kartu preferensi sumber protein tidak dirender"
+assert pref, "kartu preferensi tidak dirender"
 label = [c.label for c in pref]
-print(f"   {len(pref)} pilihan sumber protein:", label)
-for wajib in ("Ayam", "Daging Sapi", "Daging Kambing", "Telur", "Ikan & Seafood",
+print(f"   {len(pref)} pilihan preferensi:", label)
+
+for wajib in ("Ayam", "Olahan Daging", "Telur", "Ikan & Seafood",
               "Olahan Kedelai", "Kacang-kacangan", "Sayur"):
-    assert wajib in label, f"pilihan '{wajib}' tidak ada: {label}"
+    assert wajib in label, f"pilihan protein '{wajib}' tidak ada: {label}"
+
+# Sumber karbohidrat kini IKUT ditawarkan. Peran gizi A/B/C/D menentukan berapa
+# banyak karbohidrat yang masuk tiap slot, bukan karbohidrat yang MANA -- jadi
+# pengguna yang menghindari mie atau lebih suka umbi perlu bisa menyatakannya.
+for wajib in ("Nasi & Olahan Beras", "Mie & Bihun", "Umbi & Singkong", "Jagung"):
+    assert wajib in label, f"pilihan karbohidrat '{wajib}' tidak ada: {label}"
+
+# Sapi dan kambing digabung: "Daging Kambing" hanya punya satu menu di dataset,
+# sehingga sebagai pilihan tersendiri ia tidak pernah bisa mengisi menu harian.
+for digabung in ("Daging Sapi", "Daging Kambing"):
+    assert digabung not in label, f"'{digabung}' seharusnya lebur ke 'Olahan Daging': {label}"
+
 assert all(not c.value for c in pref), "seharusnya belum ada yang tercentang"
 
-# Setiap sumber protein yang PUNYA menu di dataset harus ditawarkan -- kalau
-# kategori baru muncul di dataset, uji ini yang mengingatkan.
+# Setiap kategori yang PUNYA menu di dataset harus ditawarkan -- kalau kategori
+# baru muncul di dataset, uji ini yang mengingatkan.
 _siap = R.prepare_foods(_foods)
 _tersedia = set(R.available_food_categories(_siap))
-_protein = {k for k in R.PROTEIN_PREFERENCE_CATEGORIES.values() if k in _tersedia}
-_ditawarkan = {R.PROTEIN_PREFERENCE_CATEGORIES[l] for l in label}
-assert _protein == _ditawarkan, f"tidak lengkap: kurang {_protein - _ditawarkan}"
-print(f"   seluruh {len(_protein)} kategori protein yang ada di dataset ditawarkan")
+_didaftar = {**R.PROTEIN_PREFERENCE_CATEGORIES, **R.CARB_PREFERENCE_CATEGORIES}
+_harus = {k for kk in _didaftar.values() for k in kk if k in _tersedia}
+_ditawarkan = {k for l in label for k in _didaftar[l]}
+assert _harus == _ditawarkan, f"tidak lengkap: kurang {_harus - _ditawarkan}"
+print(f"   seluruh {len(_harus)} kategori preferensi yang ada di dataset ditawarkan")
 
-# Sumber karbohidrat & pelengkap TIDAK boleh ikut ditawarkan.
-for terlarang in ("Nasi & Olahan Beras", "Mie & Bihun", "Kerupuk & Keripik", "Buah"):
-    assert terlarang not in label, f"'{terlarang}' bukan sumber protein: {label}"
-print("   hanya sumber protein yang ditawarkan; karbohidrat & pelengkap tidak ikut")
+# Pelengkap yang bukan pilihan bermakna tetap TIDAK ditawarkan.
+for terlarang in ("Kerupuk & Keripik", "Lainnya"):
+    assert terlarang not in label, f"'{terlarang}' bukan preferensi: {label}"
+print("   pelengkap seperti kerupuk tetap tidak ditawarkan")
 
 at.checkbox(key="pref_Ayam").check().run()
 assert not at.exception, [e.value for e in at.exception]
 assert at.session_state["meal_categories"] == ["Ayam"], at.session_state["meal_categories"]
 print("   mencentang Ayam tersimpan sebagai kategori dataset 'Ayam'")
+
+at.checkbox(key="pref_Olahan Daging").check().run()
+assert not at.exception, [e.value for e in at.exception]
+_gabungan = at.session_state["meal_categories"]
+assert "Daging Sapi" in _gabungan and "Daging Kambing" in _gabungan, _gabungan
+print("   satu centang 'Olahan Daging' menjaring sapi DAN kambing:", _gabungan)
+at.checkbox(key="pref_Olahan Daging").uncheck().run()
 
 at = run("Meal Recommendation", click="Buat Menu")
 texts = [m.value or "" for m in at.markdown]

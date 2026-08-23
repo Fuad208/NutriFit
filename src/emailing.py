@@ -1,17 +1,4 @@
-"""Utilitas pengiriman email (verifikasi akun & lupa password) via SMTP.
-
-Kredensial SMTP dibaca dari .env / environment variable, lewat helper
-`getenv()` yang sudah ada di src.database (konsisten dengan cara modul lain
-baca konfigurasi). Tidak ada kredensial yang di-hardcode di sini.
-
-Variabel .env yang dibutuhkan:
-    SMTP_HOST       contoh: smtp.gmail.com
-    SMTP_PORT       contoh: 587
-    SMTP_USER       alamat pengirim, contoh: nutrifit.noreply@gmail.com
-    SMTP_PASSWORD   App Password Gmail (BUKAN password akun biasa)
-    SMTP_FROM       (opsional) nama+email pengirim yang tampil di inbox penerima
-    APP_BASE_URL    contoh: http://localhost:8501  (dipakai untuk membangun link verifikasi/reset)
-"""
+"""Pengiriman surel verifikasi akun dan tautan atur ulang kata sandi lewat SMTP."""
 from __future__ import annotations
 
 from email.mime.text import MIMEText

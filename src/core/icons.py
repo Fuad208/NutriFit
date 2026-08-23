@@ -1,15 +1,4 @@
-"""Ikon SVG inline untuk kartu dashboard.
-
-SENGAJA SVG, bukan emoji. Emoji dirender pakai font sistem, jadi tinggi dan
-lebarnya berbeda di Windows/macOS/Linux -- efeknya baris aktivitas jadi tidak
-rata dan ikon di kartu langkah bergeser sendiri tergantung mesin yang membuka.
-SVG ukurannya pasti, dan karena `stroke="currentColor"` warnanya otomatis ikut
-warna teks elemen induk, sehingga satu ikon bisa dipakai untuk state normal,
-terkunci (abu-abu), maupun selesai (hijau) tanpa perlu file terpisah.
-
-Gaya gambarnya mengikuti ikon garis (outline, stroke-width seragam) supaya
-konsisten dengan rancangan dashboard.
-"""
+"""Kumpulan ikon SVG sebaris yang dipakai kartu dan judul bagian."""
 
 from __future__ import annotations
 

@@ -1,13 +1,4 @@
-"""Validasi alat ukur baru: Metode Siku, Gower Distance, dan metrik peringkat Top-N.
-
-Ketiganya gampang diimplementasikan setengah benar dan tetap mengeluarkan angka
-yang "masuk akal" -- siku yang meleset satu langkah, Gower yang lupa dibagi
-rentang, NDCG yang lupa dinormalkan. Semua tetap 0..1 dan tetap bisa ditulis di
-laporan, padahal artinya sudah salah.
-
-Karena itu di sini ketiganya diuji pada kasus yang jawabannya sudah pasti lebih
-dulu, baru dipercaya pada data sungguhan.
-"""
+"""Uji metrik evaluasi: Metode Siku, jarak Gower, MAP, dan NDCG pada data buatan."""
 import sys
 from pathlib import Path
 

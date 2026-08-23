@@ -14,6 +14,8 @@ from src.recommender import (
     OTHER_CATEGORY,
     SNACK_SLOT,
     available_food_categories,
+    carb_preference_options,
+    food_categories_for_name,
     protein_preference_options,
     recommend_foods,
     slot_calorie_quota,
@@ -46,7 +48,7 @@ def meal_view(foods: pd.DataFrame) -> None:
     # kembali di pilihannya walaupun menunya sendiri tampil.
     restore_today_menu(all_categories)
 
-    # Dulu preferensi diketik bebas, sehingga user harus menebak kata kunci apa
+    # Preferensi berupa pilihan kategori, bukan ketikan bebas: mencentang
     # yang ada di dataset. Sekarang berupa pilihan sumber protein -- mencentang
     # "Ayam" sudah mencakup SELURUH menu berbahan ayam (ayam goreng, ayam
     # ampela, ayam taliwang, dan seterusnya).
@@ -67,10 +69,15 @@ def meal_view(foods: pd.DataFrame) -> None:
     if generate:
         st.session_state.excluded_food_ids = []
         st.session_state.meal_categories = list(selected_categories or [])
+        # Tujuan menentukan SUSUNAN peran gizi tiap slot, bukan sekadar besaran
+        # kalorinya. Diambil dengan .get() karena record lama bisa belum memuat
+        # kuncinya; meal_template() jatuh ke "Maintain Weight" bila begitu.
+        profil = st.session_state.profile or {}
         st.session_state.food_recommendations = recommend_foods(
             foods,
             nutrition,
             categories=st.session_state.meal_categories,
+            fitness_goal=profil.get("fitness_goal"),
         )
         st.session_state.meal_from_storage = False
         persist_meal_recommendation(
@@ -78,7 +85,7 @@ def meal_view(foods: pd.DataFrame) -> None:
             st.session_state.meal_categories,
         )
 
-    # Hanya tampil setelah user menekan tombolnya. Sebelumnya menu langsung
+    # Menu hanya disusun setelah tombolnya ditekan, supaya pengguna tidak
     # dibuat begitu halaman dibuka, sehingga user mengira daftar itu sudah
     # disesuaikan dengan preferensinya padahal dia belum memasukkan apa pun.
     if st.session_state.food_recommendations is None:
@@ -98,28 +105,22 @@ def meal_view(foods: pd.DataFrame) -> None:
     display_meals(foods, snack_categories, all_categories)
 
 
-def render_protein_preference(foods: pd.DataFrame) -> list[str]:
-    """Kartu pilihan sumber protein, tiga kolom per baris.
+def _render_kartu_preferensi(
+    judul: str,
+    pilihan: dict[str, tuple[str, ...]],
+    terpilih: set[str],
+    kunci_kartu: str,
+    keterangan: str | None = None,
+) -> list[str]:
+    """Satu kartu pilihan kategori, tiga kolom per baris.
 
-    Hanya sumber protein yang ditawarkan. Karbohidrat dan pelengkap tidak ikut
-    dipilih karena porsinya sudah ditentukan MEAL_TEMPLATE lewat klaster A/B/C --
-    yang benar-benar menentukan rasa sebuah menu adalah lauknya.
-
-    Nilainya disimpan di `meal_categories` sebagai nama kategori dataset, bukan
-    label yang tampil, supaya recommend_foods tidak perlu tahu soal tampilan.
+    `pilihan` memetakan label yang tampil ke satu atau lebih kategori dataset, supaya
+    beberapa kategori bisa disodorkan sebagai satu pilihan. Kunci checkbox dirakit
+    dari LABEL, bukan kategorinya, karena satu label bisa mewakili beberapa kategori.
     """
-    pilihan = protein_preference_options(foods)
-    if not pilihan:
-        return []
-
-    terpilih = set(st.session_state.get("meal_categories") or [])
     hasil: list[str] = []
-
-    with st.container(border=True, key="card_protein_pref"):
-        st.markdown(
-            '<div class="card-title">Preferensi Sumber Protein</div>',
-            unsafe_allow_html=True,
-        )
+    with st.container(border=True, key=kunci_kartu):
+        st.markdown(f'<div class="card-title">{judul}</div>', unsafe_allow_html=True)
         label_list = list(pilihan)
         for baris_awal in range(0, len(label_list), 3):
             baris = label_list[baris_awal : baris_awal + 3]
@@ -129,28 +130,50 @@ def render_protein_preference(foods: pd.DataFrame) -> list[str]:
                 with kol:
                     if st.checkbox(
                         label,
-                        value=kategori in terpilih,
-                        key=f"pref_{kategori}",
+                        value=any(k in terpilih for k in kategori),
+                        key=f"pref_{label}",
                     ):
-                        hasil.append(kategori)
+                        hasil.extend(kategori)
             # Baris terakhir yang tidak penuh: sisa kolomnya dibiarkan kosong
             # supaya lebar tiap kotak tetap sama dengan baris di atasnya.
-
-        st.caption(
-            "Kosongkan semua untuk membiarkan sistem memilih menu paling seimbang."
-        )
-
-    st.session_state.meal_categories = hasil
+        if keterangan:
+            st.caption(keterangan)
     return hasil
 
 
+def render_protein_preference(foods: pd.DataFrame) -> list[str]:
+    """Render dua kartu preferensi -- sumber protein dan sumber karbohidrat.
+
+    Keduanya masuk ke satu daftar `meal_categories` yang sama, karena `_rank_foods()`
+    menggabungkan kategori dengan OR lalu `_candidate_tiers()` yang memilah per peran
+    gizi slot. Nilainya disimpan sebagai nama kategori dataset, bukan label tampilan.
+    """
+    protein = protein_preference_options(foods)
+    karbo = carb_preference_options(foods)
+    if not protein and not karbo:
+        return []
+
+    terpilih = set(st.session_state.get("meal_categories") or [])
+    hasil: list[str] = []
+
+    if protein:
+        hasil += _render_kartu_preferensi(
+            "Preferensi Sumber Protein", protein, terpilih, "card_protein_pref"
+        )
+    if karbo:
+        hasil += _render_kartu_preferensi(
+            "Preferensi Sumber Karbohidrat", karbo, terpilih, "card_carb_pref",
+            "Kosongkan semua untuk membiarkan sistem memilih menu paling seimbang.",
+        )
+
+    # Satu kategori bisa disodorkan dua kali kalau kelak muncul di kedua daftar;
+    # dedup sambil menjaga urutan supaya kuerinya tetap bisa ditebak.
+    st.session_state.meal_categories = list(dict.fromkeys(hasil))
+    return st.session_state.meal_categories
+
 
 def render_quota_explainer(nutrition) -> None:
-    """Jelaskan dari mana angka kuota tiap slot berasal.
-
-    Tanpa ini angka "500 kkal" pada judul slot terbaca seperti angka ajaib.
-    Ditaruh di expander supaya tidak mengganggu alur utama halaman.
-    """
+    """Panel penjelas asal angka kuota kalori tiap slot beserta rumus gramasinya."""
     target = float(getattr(nutrition, "target_calories", 0) or 0)
     quotas = slot_calorie_quota(target)
     with st.expander("Bagaimana porsi tiap slot dihitung?"):
@@ -183,15 +206,8 @@ def render_quota_explainer(nutrition) -> None:
 def restore_today_menu(all_categories: list[str]) -> None:
     """Muat kembali menu HARI INI dari database ke session state.
 
-    Session state hilang tiap kali halaman di-refresh atau user login ulang,
-    sedangkan record menunya masih tersimpan. Tanpa pemulihan ini user harus
-    menekan "Buat Menu" lagi untuk bisa melanjutkan -- dan menu baru itu
-    menggantikan menu yang sedang dia jalani hari itu beserta centang
-    "sudah dimakan"-nya.
-
-    Ditandai per tanggal (`meal_restored_on`) supaya pencarian record hanya
-    dilakukan sekali per hari per sesi, bukan tiap kali halaman dirender ulang
-    (mis. tiap centang), dan tetap dicoba lagi setelah tanggal berganti.
+    Ditandai per tanggal supaya pencarian record hanya dilakukan sekali per hari per
+    sesi, dan tetap dicoba lagi setelah tanggal berganti.
     """
     if st.session_state.food_recommendations is not None:
         return
@@ -273,20 +289,35 @@ def slot_heading_html(meal_slot: str, items: list[dict]) -> str:
     return f'<div class="slot-head">{"".join(parts)}</div>'
 
 
-def meal_image_html(item: dict) -> str:
-    """Gambar menu, dengan gambar pengganti sebagai dasarnya.
+def gambar_terkini(item: dict, foods: pd.DataFrame | None) -> tuple[object, bool]:
+    """Alamat gambar dan status tampilnya, diambil dari dataset yang SEDANG aktif.
 
-    Gambar pengganti bukan cadangan yang dipasang belakangan melainkan LATAR
-    dari kotaknya, dan foto aslinya ditumpuk di atasnya. Dengan begitu tautan
-    yang mati tidak menyisakan ikon gambar rusak: `<img>` yang gagal dimuat
-    tidak menggambar apa pun, sehingga latarnya yang terlihat. Tidak ada
-    JavaScript yang terlibat, jadi tidak bergantung pada sanitizer Streamlit.
-
-    Ketersediaan gambar juga tidak lagi menentukan sebuah menu boleh muncul
-    atau tidak, jadi kartu ini harus tetap rapi tanpa foto sama sekali.
+    Rekomendasi tersimpan adalah salinan baris menu saat menu disusun. Salinan itu
+    tetap dipakai untuk angka gizi dan gramasi supaya riwayat tidak berubah surut,
+    tetapi gambar dibaca ulang dari dataset supaya perbaikan tautan oleh admin ikut
+    terlihat. Snapshot dipakai sebagai cadangan bila barisnya sudah dihapus.
     """
-    alamat = item.get("image")
-    punya_gambar = bool(item.get("Has_Image", True))
+    if foods is not None and "id" in getattr(foods, "columns", []):
+        try:
+            food_id = int(item.get("id"))
+        except (TypeError, ValueError):
+            food_id = None
+        if food_id is not None:
+            baris = foods[foods["id"] == food_id]
+            if not baris.empty:
+                terkini = baris.iloc[0]
+                return terkini.get("image"), bool(terkini.get("Has_Image", True))
+    return item.get("image"), bool(item.get("Has_Image", True))
+
+
+def meal_image_html(item: dict, foods: pd.DataFrame | None = None) -> str:
+    """Gambar menu, dengan gambar pengganti sebagai latar kotaknya.
+
+    Foto aslinya ditumpuk di atas latar itu, sehingga tautan yang mati tidak
+    menyisakan ikon gambar rusak. `foods` boleh dikosongkan; tanpa dataset, alamatnya
+    dibaca apa adanya dari item yang dioper.
+    """
+    alamat, punya_gambar = gambar_terkini(item, foods)
     layak = punya_gambar and isinstance(alamat, str) and alamat.startswith(("http://", "https://"))
     if not layak:
         return '<div class="meal-image" aria-hidden="true"></div>'
@@ -311,14 +342,21 @@ def render_meal_card(
     with st.container(border=True):
         image_col, detail_col, action_col = st.columns([0.16, 0.64, 0.20], vertical_alignment="center")
         with image_col:
-            st.markdown(meal_image_html(item), unsafe_allow_html=True)
+            st.markdown(meal_image_html(item, foods), unsafe_allow_html=True)
 
         with detail_col:
-            category = str(item.get("Food_Category") or OTHER_CATEGORY)
+            # SELURUH kategori yang dimiliki menu ini, bukan cuma yang menang
+            # prioritas. "Keripik tempe" adalah kerupuk sekaligus olahan tempe,
+            # dan menampilkan satu label saja membuat pengguna mengira sistem
+            # salah menempatkannya.
+            categories = food_categories_for_name(str(item.get("name") or ""))
+            category_chips = "".join(
+                f'<span class="chip">{html.escape(label)}</span>' for label in categories
+            ) or f'<span class="chip">{html.escape(OTHER_CATEGORY)}</span>'
             st.markdown(
                 f"""
                 <div class="food-title">{html.escape(str(item['name']))}</div>
-                <span class="chip">{html.escape(category)}</span>
+                {category_chips}
                 <span class="chip">Klaster {html.escape(str(item['Food_Cluster']))}</span>
                 <span class="chip">{item['target_calories']} kkal</span>
                 <p class="subtle">Porsi: {item['portion_gram']} g | Protein: {item['proteins']:.1f} g | Lemak: {item['fat']:.1f} g | Karbohidrat: {item['carbohydrate']:.1f} g</p>
@@ -368,13 +406,7 @@ def render_swap_control(
     selected_categories: list[str],
     displayed_food_ids: set[int],
 ) -> None:
-    """Tombol tukar beserta pilihan kategori penggantinya.
-
-    Filter kategori yang sama dengan halaman rekomendasi juga berlaku di sini --
-    itulah kenapa pilihannya dibawa ke dalam popover, bukan sekadar mewarisi
-    filter halaman: user sering ingin mengganti SATU item dengan bahan lain
-    tanpa menyusun ulang seluruh menu.
-    """
+    """Kontrol tukar satu item menu, beserta pilihan kategori penggantinya."""
     with st.popover("Tukar", use_container_width=True):
         st.markdown(f"**Ganti {item['name']}**")
         st.caption(
@@ -403,6 +435,7 @@ def render_swap_control(
                 excluded_food_ids=excluded_food_ids,
                 meal_slot=meal_slot,
                 categories=swap_categories,
+                fitness_goal=(st.session_state.profile or {}).get("fitness_goal"),
             )
             if replacement is None:
                 st.warning("Belum ada menu pengganti yang cocok.")
